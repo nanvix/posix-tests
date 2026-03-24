@@ -11,6 +11,10 @@ NANVIX_SYSROOT ?= ../.nanvix
 # Toolchain directory (set by the Docker image).
 NANVIX_TOOLCHAIN ?= /opt/nanvix
 
+# Platform and deployment mode (set by CI or z.py).
+PLATFORM ?= microvm
+PROCESS_MODE ?= multi-process
+
 # Cross-compiler.
 export CC := $(NANVIX_TOOLCHAIN)/bin/i686-nanvix-gcc
 
@@ -19,6 +23,12 @@ export CFLAGS := -std=c17
 CFLAGS += -m32 -march=pentiumpro -Wa,-march=pentiumpro
 CFLAGS += -Wall -Wextra -Werror
 CFLAGS += -O2
+CFLAGS += -D__NANVIX_SYSNAME__=\"nanvix\"
+CFLAGS += -D__NANVIX_NODENAME__=\"localhost\"
+CFLAGS += -D__$(PLATFORM)__
+ifeq ($(PROCESS_MODE),standalone)
+CFLAGS += -D__NANVIX_STANDALONE__
+endif
 
 # Linker flags.
 export LDFLAGS := -z noexecstack -T $(NANVIX_SYSROOT)/lib/user.ld
