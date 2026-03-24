@@ -78,7 +78,8 @@ $(BINARIES_DIR):
 # dlfcn-c and dlfcn-pie-c need shared libraries inside the VM filesystem.
 # file-c needs VFS access (tests open/read/write on files).
 # network-c needs network infrastructure (sockets).
-TESTABLE_SUITES := c-bindings memory-c misc-c thread-c
+# misc-c needs environment variable setup (NANVIX_TEST).
+TESTABLE_SUITES := c-bindings memory-c thread-c
 
 test: test-smoke test-integration
 
