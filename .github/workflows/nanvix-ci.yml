@@ -1,0 +1,133 @@
+# Copyright(c) The Maintainers of Nanvix.
+# Licensed under the MIT License.
+
+name: Nanvix CI
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+  repository_dispatch:
+    types: [nanvix-minor-release, nanvix-major-release]
+
+permissions:
+  contents: write
+  actions: write
+  issues: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name || github.ref || 'default' }}
+  cancel-in-progress: ${{ github.event_name == 'repository_dispatch' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: hyperlight
+            process-mode: multi-process
+            memory: 128mb
+          - platform: hyperlight
+            process-mode: single-process
+            memory: 128mb
+          - platform: microvm
+            process-mode: single-process
+            memory: 128mb
+          - platform: microvm
+            process-mode: multi-process
+            memory: 128mb
+          - platform: microvm
+            process-mode: standalone
+            memory: 128mb
+    name: ${{ matrix.platform }}-${{ matrix.process-mode }}-${{ matrix.memory }}
+    container:
+      image: nanvix/toolchain:latest-minimal
+      options: --device /dev/kvm
+    defaults:
+      run:
+        shell: bash
+    env:
+      NANVIX_MACHINE: ${{ matrix.platform }}
+      NANVIX_DEPLOYMENT_MODE: ${{ matrix.process-mode }}
+      NANVIX_MEMORY_SIZE: ${{ matrix.memory }}
+      USER: runner
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          apt-get update -qq && apt-get install -y -qq python3-pip
+          ./z setup
+
+      - name: Build
+        run: ./z build
+
+      - name: Test
+        if: matrix.process-mode != 'standalone'
+        run: ./z test
+
+      - name: Test (standalone — smoke + integration only)
+        if: matrix.process-mode == 'standalone'
+        run: ./z test -- test-smoke test-integration
+
+      - name: Release
+        if: success()
+        run: ./z release
+
+      - name: Upload Build Artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: posix-tests-${{ matrix.platform }}-${{ matrix.process-mode }}-${{ matrix.memory }}
+          path: dist/*.tar.bz2
+          retention-days: 7
+
+      - name: Collect failure logs
+        if: failure()
+        run: |
+          mkdir -p ci-logs
+          cp -f /tmp/*.log ci-logs/ 2>/dev/null || true
+          find .nanvix -type f -name "*.log" -exec cp -f {} ci-logs/ \; 2>/dev/null || true
+          ls -lah ci-logs || true
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failure-logs-${{ matrix.platform }}-${{ matrix.process-mode }}
+          path: ci-logs/*
+          if-no-files-found: warn
+
+  report-failure:
+    needs: [build]
+    if: >-
+      ${{ always() &&
+          (github.event_name == 'repository_dispatch' || github.event_name == 'schedule' || github.event_name == 'push') &&
+          needs.build.result == 'failure' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create failure issue
+        uses: actions/github-script@v7
+        env:
+          BUILD_RESULT: ${{ needs.build.result }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `CI failure (run ${context.runNumber})`,
+              body: `The posix-tests CI workflow failed.\n- Trigger: ${context.eventName}\n- Run: [#${context.runNumber}](${runUrl})\n- SHA: ${context.sha}\n- build: ${process.env.BUILD_RESULT}\n\nPlease investigate.`,
+              assignees: ['ppenna']
+            });

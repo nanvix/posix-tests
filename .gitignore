@@ -1,0 +1,14 @@
+# Copyright(c) The Maintainers of Nanvix.
+# Licensed under the MIT License.
+
+*.o
+*.elf
+.nanvix/venv/
+.nanvix/cache/
+.nanvix/sysroot/
+.nanvix/buildroot/
+.nanvix/env.json
+.z.cache
+build/
+dist/
+logs/
