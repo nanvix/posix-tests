@@ -75,9 +75,10 @@ $(BINARIES_DIR):
 #===============================================================================
 
 # Test suites that can run via plain nanvixd invocation.
-# dlfcn-c and dlfcn-pie-c are excluded because they require shared libraries
-# (libmul.so, libmul-pie.so) accessible inside the Nanvix VM filesystem.
-TESTABLE_SUITES := c-bindings file-c memory-c misc-c network-c thread-c
+# dlfcn-c and dlfcn-pie-c need shared libraries inside the VM filesystem.
+# file-c needs VFS access (tests open/read/write on files).
+# network-c needs network infrastructure (sockets).
+TESTABLE_SUITES := c-bindings memory-c misc-c thread-c
 
 test: test-smoke test-integration
 
