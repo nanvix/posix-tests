@@ -74,8 +74,10 @@ $(BINARIES_DIR):
 # Test Rules
 #===============================================================================
 
-# nanvixd binary from the sysroot.
-NANVIXD := $(NANVIX_SYSROOT)/bin/nanvixd.elf
+# Test suites that can run via plain nanvixd invocation.
+# dlfcn-c and dlfcn-pie-c are excluded because they require shared libraries
+# (libmul.so, libmul-pie.so) accessible inside the Nanvix VM filesystem.
+TESTABLE_SUITES := c-bindings file-c memory-c misc-c network-c thread-c
 
 test: test-smoke test-integration
 
@@ -91,16 +93,20 @@ test-smoke:
 	done
 
 test-integration:
+ifeq ($(PROCESS_MODE),standalone)
+	@echo "Skipping integration tests for standalone mode."
+else
 	@echo "Running integration tests..."
-	@for suite in $(SUITES); do \
+	@for suite in $(TESTABLE_SUITES); do \
 		binary="$(BINARIES_DIR)/$${suite}.elf"; \
 		if [ ! -f "$$binary" ]; then \
 			echo "SKIP $$suite"; \
 			continue; \
 		fi; \
 		echo "RUN  $$suite..."; \
-		$(NANVIXD) -console-file /dev/stdout -- "$$binary" && echo "OK   $$suite" || { echo "FAIL $$suite"; exit 1; }; \
+		$(NANVIX_SYSROOT)/bin/nanvixd.elf -console-file /dev/stdout -- "$$binary" && echo "OK   $$suite" || { echo "FAIL $$suite"; exit 1; }; \
 	done
+endif
 
 #===============================================================================
 # Release Rules
