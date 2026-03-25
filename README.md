@@ -1,21 +1,28 @@
-# POSIX C Test Suites for Nanvix
+# POSIX C/C++ Test Suites for Nanvix
 
-A collection of C test suites that validate the POSIX compatibility layer of
-[Nanvix](https://github.com/nanvix/nanvix). These tests exercise file system operations,
-threading, memory management, networking, dynamic linking, and other POSIX interfaces.
+A collection of C and C++ test suites and programs that validate the POSIX compatibility layer of
+[Nanvix](https://github.com/nanvix/nanvix). These cover file system operations,
+threading, memory management, networking, dynamic linking, and other POSIX interfaces,
+as well as simple echo, hello-world, and no-op benchmarks.
 
 ## Test Suites
 
 | Suite | Description |
 |---|---|
+| `c-bindings` | Rust-C FFI type size/alignment validation |
+| `dlfcn-c` | Dynamic linking (dlopen, dlsym) |
+| `dlfcn-pie-c` | PIE dynamic linking |
+| `echo-c` | Echo stdin to stdout (C) |
+| `echo-cpp` | Echo stdin to stdout (C++) |
 | `file-c` | File system operations (open, read, write, stat, link, mkdir, etc.) |
-| `thread-c` | Threading, mutexes, condition variables, rwlocks, TLS, TDA |
+| `hello-c` | Hello world (C) |
+| `hello-cpp` | Hello world (C++) |
 | `memory-c` | malloc/free, aligned\_alloc, realloc, mmap/munmap, heap stress |
 | `misc-c` | UID/GID, clock/time, uname, hostname, nanosleep, getenv |
 | `network-c` | IPv4 (INET) and Unix domain sockets |
-| `dlfcn-c` | Dynamic linking (dlopen, dlsym) |
-| `dlfcn-pie-c` | PIE dynamic linking |
-| `c-bindings` | Rust-C FFI type size/alignment validation |
+| `noop-c` | No-op program (C) |
+| `noop-cpp` | No-op program (C++) |
+| `thread-c` | Threading, mutexes, condition variables, rwlocks, TLS, TDA |
 
 ## Prerequisites
 
@@ -46,14 +53,20 @@ make run SUITE=file-c
 ├── Dockerfile         # Cross-compilation inside the Nanvix Docker image
 └── src/
     ├── Makefile       # Container-side orchestrator
+    ├── c-bindings/    # Rust-C FFI validation
+    ├── dlfcn-c/       # Dynamic linking test suite
+    ├── dlfcn-pie-c/   # PIE dynamic linking test suite
+    ├── echo-c/        # Echo program (C)
+    ├── echo-cpp/      # Echo program (C++)
     ├── file-c/        # File system test suite
-    ├── thread-c/      # Threading test suite
+    ├── hello-c/       # Hello world (C)
+    ├── hello-cpp/     # Hello world (C++)
     ├── memory-c/      # Memory management test suite
     ├── misc-c/        # Miscellaneous POSIX test suite
     ├── network-c/     # Networking test suite
-    ├── dlfcn-c/       # Dynamic linking test suite
-    ├── dlfcn-pie-c/   # PIE dynamic linking test suite
-    └── c-bindings/    # Rust-C FFI validation
+    ├── noop-c/        # No-op program (C)
+    ├── noop-cpp/      # No-op program (C++)
+    └── thread-c/      # Threading test suite
 ```
 
 ## How It Works
@@ -67,6 +80,7 @@ Each test suite is linked against:
 
 - **`libposix.a`** — Nanvix POSIX compatibility layer (from the Nanvix release)
 - **`libc.a`** — Newlib C library (from the toolchain)
+- **`libstdc++.a`** — C++ standard library (from the toolchain, for C++ suites)
 - **`user.ld`** — Linker script defining the Nanvix user-space memory layout (from the Nanvix release)
 
 ### Running
