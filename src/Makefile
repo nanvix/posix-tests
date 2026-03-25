@@ -18,6 +18,7 @@ MEMORY_SIZE ?= 128mb
 
 # Cross-compiler.
 export CC := $(NANVIX_TOOLCHAIN)/bin/i686-nanvix-gcc
+export CXX := $(NANVIX_TOOLCHAIN)/bin/i686-nanvix-g++
 
 # Compiler flags.
 export CFLAGS := -std=c17
@@ -31,6 +32,18 @@ ifeq ($(PROCESS_MODE),standalone)
 CFLAGS += -D__NANVIX_STANDALONE__
 endif
 
+# C++ compiler flags.
+export CXXFLAGS := -std=c++17
+CXXFLAGS += -m32 -march=pentiumpro -Wa,-march=pentiumpro
+CXXFLAGS += -Wall -Wextra -Werror
+CXXFLAGS += -O2
+CXXFLAGS += -D__NANVIX_SYSNAME__=\"nanvix\"
+CXXFLAGS += -D__NANVIX_NODENAME__=\"localhost\"
+CXXFLAGS += -D__$(PLATFORM)__
+ifeq ($(PROCESS_MODE),standalone)
+CXXFLAGS += -D__NANVIX_STANDALONE__
+endif
+
 # Linker flags.
 export LDFLAGS := -z noexecstack -T $(NANVIX_SYSROOT)/lib/user.ld
 
@@ -38,6 +51,8 @@ export LDFLAGS := -z noexecstack -T $(NANVIX_SYSROOT)/lib/user.ld
 export LIBPOSIX := $(NANVIX_SYSROOT)/lib/libposix.a
 export LIBC := $(NANVIX_TOOLCHAIN)/i686-nanvix/lib/libc.a
 export LIBRARIES := -Wl,--start-group $(LIBPOSIX) $(LIBC) -Wl,--end-group
+export LIBCXX := $(NANVIX_TOOLCHAIN)/i686-nanvix/lib/libstdc++.a
+export LIBRARIES_CXX := -Wl,--start-group $(LIBPOSIX) $(LIBC) $(LIBCXX) -Wl,--end-group
 
 # Output directory for compiled binaries.
 export BINARIES_DIR ?= $(CURDIR)/../build
@@ -49,7 +64,7 @@ export LIBRARIES_DIR ?= $(BINARIES_DIR)
 # Test Suites
 #===============================================================================
 
-SUITES := c-bindings dlfcn-c dlfcn-pie-c file-c memory-c misc-c network-c thread-c
+SUITES := c-bindings dlfcn-c dlfcn-pie-c echo-c echo-cpp file-c hello-c hello-cpp memory-c misc-c network-c noop-c noop-cpp thread-c
 
 #===============================================================================
 # Build Rules
@@ -79,7 +94,7 @@ $(BINARIES_DIR):
 # file-c needs VFS access (tests open/read/write on files).
 # network-c needs network infrastructure (sockets).
 # misc-c needs environment variable setup (NANVIX_TEST).
-TESTABLE_SUITES := c-bindings memory-c thread-c
+TESTABLE_SUITES := c-bindings echo-c echo-cpp hello-c hello-cpp memory-c noop-c noop-cpp thread-c
 
 test: test-smoke test-integration
 

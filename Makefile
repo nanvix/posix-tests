@@ -12,7 +12,7 @@ NANVIX_REPO ?= nanvix/nanvix
 NANVIX_DIR ?= .nanvix
 
 # Test suites to build.
-SUITES := c-bindings dlfcn-c dlfcn-pie-c file-c memory-c misc-c network-c thread-c
+SUITES := c-bindings dlfcn-c dlfcn-pie-c echo-c echo-cpp file-c hello-c hello-cpp memory-c misc-c network-c noop-c noop-cpp thread-c
 
 # ELF binaries produced by each suite.
 BINARIES := $(addsuffix .elf,$(SUITES))
