@@ -1,0 +1,10 @@
+[package]
+name = "posix-tests"
+version = "0.1.0"
+nanvix-version = "0.12.410"
+
+[builds]
+[builds.matrix]
+platforms = ["hyperlight", "microvm"]
+modes = ["multi-process", "single-process", "standalone"]
+memory = ["128mb"]
