@@ -11,7 +11,7 @@ Usage:
     ./z clean     # Remove build artifacts
 """
 
-from nanvix_zutil import CFG_GH_TOKEN, CFG_SYSROOT, CFG_TAG, CFG_TOOLCHAIN, EXIT_MISSING_DEP, Sysroot, ZScript, log
+from nanvix_zutil import CFG_SYSROOT, CFG_TOOLCHAIN, EXIT_MISSING_DEP, ZScript, log
 
 # Makefile variable names (build-system-specific).
 _MAKE_VAR_SYSROOT = "NANVIX_SYSROOT"
@@ -23,8 +23,6 @@ _MAKE_VAR_MEMORY_SIZE = "MEMORY_SIZE"
 
 class PosixTestsBuild(ZScript):
     """Build script for nanvix/posix-tests."""
-
-    NANVIX_TAG = "latest"
 
     def _make_args(self, *targets: str) -> list[str]:
         """Build the common make argument list."""
@@ -51,20 +49,7 @@ class PosixTestsBuild(ZScript):
 
     def setup(self) -> None:
         """Download the Nanvix sysroot."""
-        tag = self.config.get(CFG_TAG, self.NANVIX_TAG)
-        if not tag:
-            log.fatal(f"{CFG_TAG} is not set.", code=EXIT_MISSING_DEP)
-
-        sysroot = Sysroot.download(
-            machine=self.config.machine,
-            deployment_mode=self.config.deployment_mode,
-            memory_size=self.config.memory_size,
-            tag=tag,
-            gh_token=self.config.get(CFG_GH_TOKEN),
-        )
-        sysroot.verify(self.sysroot_required_files())
-        self.config.set(CFG_SYSROOT, str(sysroot.path))
-        self.config.save()
+        super().setup()
 
     def build(self) -> None:
         """Cross-compile all POSIX test suites for Nanvix."""

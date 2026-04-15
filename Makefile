@@ -52,10 +52,10 @@ init: $(NANVIX_DIR)/lib/libposix.a
 
 $(NANVIX_DIR)/lib/libposix.a:
 	@echo "Downloading the latest Nanvix release..."
-	@RELEASE_INFO=$$(gh release view latest --repo "$(NANVIX_REPO)" --json tagName,assets); \
+	@RELEASE_INFO=$$(gh release view --repo "$(NANVIX_REPO)" --json tagName,assets); \
 	TAG_NAME=$$(echo "$$RELEASE_INFO" | jq -r '.tagName'); \
 	ASSET_NAME=$$(echo "$$RELEASE_INFO" | jq -r \
-		'.assets[] | select(.name | startswith("nanvix-microvm-multi-process-release")) | .name'); \
+		'.assets[] | select(.name | startswith("nanvix-x86-microvm-multi-process-release")) | .name'); \
 	if [ -z "$$ASSET_NAME" ]; then \
 		echo "ERROR: Could not find a microvm multi-process release asset." >&2; \
 		exit 1; \
@@ -73,7 +73,7 @@ $(NANVIX_DIR)/lib/libposix.a:
 	fi; \
 	echo "  Docker image: $$DOCKER_IMAGE"; \
 	TMPDIR=$$(mktemp -d); \
-	gh release download latest --repo "$(NANVIX_REPO)" \
+	gh release download "$$TAG_NAME" --repo "$(NANVIX_REPO)" \
 		--pattern "$$ASSET_NAME" \
 		--dir "$$TMPDIR"; \
 	mkdir -p $(NANVIX_DIR); \
@@ -84,6 +84,8 @@ $(NANVIX_DIR)/lib/libposix.a:
 	echo "Done. Nanvix release extracted to $(NANVIX_DIR)/."
 
 distclean: clean
-	rm -rf $(NANVIX_DIR)
+	rm -rf $(NANVIX_DIR)/sysroot $(NANVIX_DIR)/cache $(NANVIX_DIR)/buildroot
+	rm -rf $(NANVIX_DIR)/venv $(NANVIX_DIR)/env.json $(NANVIX_DIR)/.docker-image
+	rm -rf $(NANVIX_DIR)/lib $(NANVIX_DIR)/bin $(NANVIX_DIR)/include
 
 .PHONY: all run compile clean init distclean
