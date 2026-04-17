@@ -23,7 +23,10 @@ COPY Makefile ./
 COPY .nanvix/ .nanvix/
 
 # Build all test suites.
-RUN mkdir -p build && make compile
+# NANVIX_SYSROOT is set so the build works whether the sysroot lives at
+# .nanvix/ (make init layout) or .nanvix/sysroot/ (nanvix-zutil layout).
+ARG NANVIX_SYSROOT=.nanvix
+RUN mkdir -p build && make compile NANVIX_SYSROOT=/workspace/${NANVIX_SYSROOT}
 
 # Export the compiled binaries.
 FROM scratch
