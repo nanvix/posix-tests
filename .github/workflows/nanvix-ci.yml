@@ -38,10 +38,10 @@ jobs:
       GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
       DISPATCH_TOKEN: ${{ secrets.DISPATCH_TOKEN || secrets.GITHUB_TOKEN }}
 
-  windows:
-    name: Windows (build + test)
+  windows-test:
+    name: Windows (test)
     runs-on: windows-latest
-    needs: []
+    needs: [ci]
     steps:
       - uses: actions/checkout@v4
 
@@ -50,13 +50,29 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Setup
+      - name: Setup (download sysroot + Windows binaries)
         shell: pwsh
         run: ./z.ps1 setup
 
-      - name: Build (Docker)
+      - name: Download Linux build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "posix-tests-*-microvm-standalone-*"
+          merge-multiple: true
+          path: _artifacts
+
+      - name: Extract test binaries
         shell: pwsh
-        run: ./z.ps1 build
+        run: |
+          New-Item -ItemType Directory -Path build -Force | Out-Null
+          $tarball = Get-ChildItem -Path _artifacts -Filter "*.tar.bz2" | Select-Object -First 1
+          if (-not $tarball) {
+            Write-Error "No tarball found in _artifacts/"
+            exit 1
+          }
+          Write-Host "Extracting $($tarball.Name)..."
+          tar xjf $tarball.FullName -C build
+          Get-ChildItem build/*.elf | ForEach-Object { Write-Host "  $($_.Name)" }
 
       - name: Test
         shell: pwsh
