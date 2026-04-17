@@ -85,15 +85,23 @@ class PosixTestsBuild(ZScript):
 
     _local_nanvix_path: str | None = None
 
+    # posix-tests doesn't need mkramfs.elf (no ramfs images).
+    # Override the base class default which includes it.
     if IS_WINDOWS:
-        # Windows sysroot verification only checks files present in the
-        # Linux release tarball.  nanvixd.exe and kernel.elf are
-        # downloaded separately by _download_windows_binaries().
+        # nanvixd.exe and kernel.elf are downloaded separately by
+        # _download_windows_binaries(), so don't require them here.
         SYSROOT_REQUIRED_FILES: tuple[str, ...] = (
             "lib/libposix.a",
             "lib/user.ld",
         )
         SYSROOT_MULTI_PROCESS_FILES: tuple[str, ...] = ()
+    else:
+        SYSROOT_REQUIRED_FILES: tuple[str, ...] = (
+            "lib/libposix.a",
+            "lib/user.ld",
+            "bin/nanvixd.elf",
+            "bin/kernel.elf",
+        )
 
     # ---- CLI entry point -------------------------------------------------
 
