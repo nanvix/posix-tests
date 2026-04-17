@@ -63,11 +63,12 @@ class PosixTestsBuild(ZScript):
     """Build script for nanvix/posix-tests."""
 
     if IS_WINDOWS:
+        # Windows sysroot verification only checks files present in the
+        # Linux release tarball.  nanvixd.exe and kernel.elf are
+        # downloaded separately by _download_windows_binaries().
         SYSROOT_REQUIRED_FILES: tuple[str, ...] = (
             "lib/libposix.a",
             "lib/user.ld",
-            "bin/nanvixd.exe",
-            "bin/kernel.elf",
         )
         SYSROOT_MULTI_PROCESS_FILES: tuple[str, ...] = ()
 
