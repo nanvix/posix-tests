@@ -22,11 +22,20 @@ COPY src/ src/
 COPY Makefile ./
 COPY .nanvix/ .nanvix/
 
+# Build configuration — forwarded from z.py or overridden via --build-arg.
+ARG NANVIX_SYSROOT=.nanvix
+ARG PLATFORM=microvm
+ARG PROCESS_MODE=multi-process
+ARG MEMORY_SIZE=128mb
+
 # Build all test suites.
 # NANVIX_SYSROOT is set so the build works whether the sysroot lives at
 # .nanvix/ (make init layout) or .nanvix/sysroot/ (nanvix-zutil layout).
-ARG NANVIX_SYSROOT=.nanvix
-RUN mkdir -p build && make compile NANVIX_SYSROOT=/workspace/${NANVIX_SYSROOT}
+RUN mkdir -p build && make compile \
+    NANVIX_SYSROOT=/workspace/${NANVIX_SYSROOT} \
+    PLATFORM=${PLATFORM} \
+    PROCESS_MODE=${PROCESS_MODE} \
+    MEMORY_SIZE=${MEMORY_SIZE}
 
 # Export the compiled binaries.
 FROM scratch

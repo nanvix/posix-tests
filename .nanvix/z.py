@@ -9,6 +9,14 @@ Usage:
     ./z test      # Run test suite (smoke + integration + functional)
     ./z release   # Package release tarball
     ./z clean     # Remove build artifacts
+
+Options:
+    --with-nanvix PATH  Use local Nanvix binaries from PATH instead of
+                        the downloaded sysroot binaries. PATH should point
+                        to a Nanvix build directory containing bin/ and lib/.
+                        The path is persisted in .nanvix/env.json, so it
+                        only needs to be passed once. Pass again to change
+                        it. Works on both Linux and Windows.
 """
 
 import json
@@ -58,9 +66,24 @@ DOCKER_IMAGE = "nanvix/toolchain:latest-minimal"
 # Windows host-native binaries needed for test execution.
 WINDOWS_HOST_BINARIES = ["nanvixd.exe", "kernel.elf"]
 
+# Config key for persisting the --with-nanvix path in env.json.
+_CFG_LOCAL_NANVIX = "local_nanvix_path"
+
+# ---------------------------------------------------------------------------
+# Early --with-nanvix extraction
+# ---------------------------------------------------------------------------
+# The nanvix-zutil CLI inspects sys.argv to find the subcommand *before*
+# calling PosixTestsBuild.main().  The shell wrappers (z.sh / z.ps1) strip
+# --with-nanvix PATH from argv and pass it via the NANVIX_LOCAL_PATH
+# environment variable.  Pick it up here at import time.
+
+_EARLY_LOCAL_NANVIX: str | None = os.environ.get("NANVIX_LOCAL_PATH") or None
+
 
 class PosixTestsBuild(ZScript):
     """Build script for nanvix/posix-tests."""
+
+    _local_nanvix_path: str | None = None
 
     if IS_WINDOWS:
         # Windows sysroot verification only checks files present in the
@@ -71,6 +94,104 @@ class PosixTestsBuild(ZScript):
             "lib/user.ld",
         )
         SYSROOT_MULTI_PROCESS_FILES: tuple[str, ...] = ()
+
+    # ---- CLI entry point -------------------------------------------------
+
+    @classmethod
+    def main(cls, *, repo_root: Path | None = None) -> None:
+        """Pre-parse ``--with-nanvix`` and delegate to ZScript.main()."""
+        if _EARLY_LOCAL_NANVIX is not None:
+            cls._local_nanvix_path = _EARLY_LOCAL_NANVIX
+        super().main(repo_root=repo_root)
+
+    # ---- Local Nanvix overlay --------------------------------------------
+
+    def _overlay_local_nanvix(self) -> None:
+        """Copy local Nanvix binaries and libraries into the sysroot.
+
+        When ``--with-nanvix PATH`` is supplied (or was previously
+        persisted in config), this method copies the runtime binaries
+        (nanvixd, kernel, …) and libraries (libposix.a, user.ld)
+        from the local Nanvix build directory into the configured sysroot
+        so that subsequent build and test steps use the local versions.
+
+        The path is persisted in ``.nanvix/env.json`` on first use so
+        that later commands pick it up automatically.
+
+        Works on both Linux (ELF binaries) and Windows (.exe binaries).
+        """
+        # CLI flag takes precedence; fall back to persisted config.
+        nanvix_path = self._local_nanvix_path or self.config.get(
+            _CFG_LOCAL_NANVIX, ""
+        )
+        if not nanvix_path:
+            return
+
+        nanvix_path = os.path.abspath(os.path.expanduser(nanvix_path))
+        if not os.path.isdir(nanvix_path):
+            log.warning(
+                f"--with-nanvix path no longer exists: {nanvix_path}"
+            )
+            return
+
+        # Persist so subsequent commands reuse the same path.
+        if self.config.get(_CFG_LOCAL_NANVIX, "") != nanvix_path:
+            self.config.set(_CFG_LOCAL_NANVIX, nanvix_path)
+            self.config.save()
+
+        sysroot = self.config.get(CFG_SYSROOT, "")
+        if not sysroot:
+            return
+
+        nanvix_dir = Path(nanvix_path)
+        sysroot_path = Path(sysroot)
+
+        log.info(f"Overlaying local Nanvix binaries from {nanvix_dir}")
+
+        # -- Binaries ------------------------------------------------------
+        bin_src = nanvix_dir / "bin"
+        bin_dst = sysroot_path / "bin"
+        bin_dst.mkdir(parents=True, exist_ok=True)
+
+        if IS_WINDOWS:
+            binaries = ["nanvixd.exe", "kernel.elf"]
+        else:
+            binaries = [
+                "nanvixd.elf", "kernel.elf",
+                "linuxd.elf", "uservm.elf",
+            ]
+
+        for name in binaries:
+            src = bin_src / name
+            if src.is_file():
+                shutil.copy2(src, bin_dst / name)
+                log.info(f"  Copied {name}")
+
+        # -- Libraries -----------------------------------------------------
+        lib_dst = sysroot_path / "lib"
+        lib_dst.mkdir(parents=True, exist_ok=True)
+        lib_src = nanvix_dir / "lib"
+
+        if lib_src.is_dir():
+            for lib_name in ["libposix.a"]:
+                src = lib_src / lib_name
+                if src.is_file():
+                    shutil.copy2(src, lib_dst / lib_name)
+                    log.info(f"  Copied {lib_name}")
+
+        # -- Linker script (user.ld) — check multiple locations ------------
+        user_ld_candidates = [
+            nanvix_dir / "lib" / "user.ld",
+            nanvix_dir / "sysroot-release" / "lib" / "user.ld",
+            nanvix_dir / "build" / "user" / "linker" / "x86" / "user.ld",
+        ]
+        for candidate in user_ld_candidates:
+            if candidate.is_file():
+                shutil.copy2(candidate, lib_dst / "user.ld")
+                log.info(f"  Copied user.ld from {candidate}")
+                break
+
+    # ---- Helpers ---------------------------------------------------------
 
     def _make_args(self, *targets: str) -> list[str]:
         """Build the common make argument list."""
@@ -95,19 +216,83 @@ class PosixTestsBuild(ZScript):
         args.extend(targets)
         return args
 
-    # ---- Lifecycle hooks -------------------------------------------------
-
-    def setup(self) -> None:
-        """Download the Nanvix sysroot."""
-        super().setup()
-        if IS_WINDOWS:
-            self._download_windows_binaries()
-
     def _has_native_toolchain(self) -> bool:
         """Check if the native cross-compilation toolchain is available."""
         toolchain = self.config.get(CFG_TOOLCHAIN, "/opt/nanvix")
         cc = Path(toolchain) / "bin" / "i686-nanvix-gcc"
         return cc.is_file()
+
+    # ---- Lifecycle hooks -------------------------------------------------
+
+    def setup(self) -> None:
+        """Download the Nanvix sysroot."""
+        local_nanvix = self._local_nanvix_path
+        if local_nanvix:
+            local_nanvix = os.path.abspath(os.path.expanduser(local_nanvix))
+
+        if local_nanvix and os.path.isdir(local_nanvix):
+            # Use local Nanvix binaries instead of downloading the sysroot.
+            log.info(f"Using local Nanvix from {local_nanvix}")
+
+            from nanvix_zutil import Sysroot
+
+            sysroot_dir = self.nanvix_dir / "sysroot"
+            if sysroot_dir.exists():
+                shutil.rmtree(sysroot_dir)
+            sysroot_dir.mkdir(parents=True)
+
+            local = Path(local_nanvix)
+
+            # Copy binaries.
+            bin_dst = sysroot_dir / "bin"
+            bin_dst.mkdir()
+            if IS_WINDOWS:
+                bin_names = ["nanvixd.exe", "kernel.elf"]
+            else:
+                bin_names = [
+                    "nanvixd.elf", "kernel.elf",
+                    "linuxd.elf", "uservm.elf",
+                ]
+            for name in bin_names:
+                src = local / "bin" / name
+                if src.is_file():
+                    shutil.copy2(src, bin_dst / name)
+                    log.info(f"  Copied bin/{name}")
+
+            # Copy libraries.
+            lib_dst = sysroot_dir / "lib"
+            lib_dst.mkdir()
+            lib_src = local / "lib"
+            if lib_src.is_dir():
+                for f in lib_src.iterdir():
+                    if f.is_file():
+                        shutil.copy2(f, lib_dst / f.name)
+                        log.info(f"  Copied lib/{f.name}")
+
+            # Copy user.ld from known fallback locations.
+            if not (lib_dst / "user.ld").is_file():
+                for candidate in [
+                    local / "sysroot-release" / "lib" / "user.ld",
+                    local / "build" / "user" / "linker" / "x86" / "user.ld",
+                ]:
+                    if candidate.is_file():
+                        shutil.copy2(candidate, lib_dst / "user.ld")
+                        log.info(f"  Copied user.ld from {candidate}")
+                        break
+
+            self.sysroot = Sysroot(sysroot_dir.resolve())
+            self.sysroot.verify(self.sysroot_required_files())
+            self.config.set(CFG_SYSROOT, str(self.sysroot.path))
+            self.config.set(_CFG_LOCAL_NANVIX, local_nanvix)
+            self.config.save()
+        else:
+            super().setup()
+
+        if IS_WINDOWS:
+            self._download_windows_binaries()
+
+        # Overlay local Nanvix binaries last so they take precedence.
+        self._overlay_local_nanvix()
 
     def build(self) -> None:
         """Cross-compile all POSIX test suites for Nanvix.
@@ -116,6 +301,7 @@ class PosixTestsBuild(ZScript):
         builds inside Docker (required on Windows or when the toolchain
         is not installed locally).
         """
+        self._overlay_local_nanvix()
         if IS_WINDOWS or not self._has_native_toolchain():
             self._docker_build()
         else:
@@ -128,6 +314,7 @@ class PosixTestsBuild(ZScript):
         With targets (e.g. ``./z test -- test-smoke test-integration``), passes
         them directly to the Makefile.
         """
+        self._overlay_local_nanvix()
         if IS_WINDOWS:
             self._run_tests_native()
         else:
@@ -136,6 +323,7 @@ class PosixTestsBuild(ZScript):
 
     def release(self) -> None:
         """Package the posix-tests release tarball and verify it."""
+        self._overlay_local_nanvix()
         if IS_WINDOWS:
             log.warning("Release packaging is not supported on Windows.")
             log.warning("Use a Linux host or CI to build release tarballs.")
@@ -153,13 +341,15 @@ class PosixTestsBuild(ZScript):
         else:
             self.run("make", "-C", "src", "clean", cwd=self.repo_root)
 
-    # ---- Windows: Docker build -------------------------------------------
+    # ---- Docker build ----------------------------------------------------
 
     def _docker_build(self) -> None:
-        """Build test suites via Docker on Windows.
+        """Build test suites via Docker.
 
         Invokes ``docker build`` directly instead of going through the
-        host Makefile, which requires POSIX shell constructs.
+        host Makefile, which requires POSIX shell constructs.  Forwards
+        the build configuration (platform, process mode, memory size)
+        as Docker build args.
         """
         docker_image = self._resolve_docker_image()
         build_dir = self.repo_root / "build"
@@ -179,7 +369,10 @@ class PosixTestsBuild(ZScript):
                 "docker", "build",
                 "--build-arg", f"BASE_IMAGE={docker_image}",
                 "--build-arg", f"NANVIX_SYSROOT={sysroot_rel}",
-                "--output", f"type=local,dest=build",
+                "--build-arg", f"PLATFORM={self.config.machine}",
+                "--build-arg", f"PROCESS_MODE={self.config.deployment_mode}",
+                "--build-arg", f"MEMORY_SIZE={self.config.memory_size}",
+                "--output", "type=local,dest=build",
                 ".",
             ],
             cwd=self.repo_root,
@@ -216,7 +409,7 @@ class PosixTestsBuild(ZScript):
 
         return DOCKER_IMAGE
 
-    # ---- Windows: native test execution ----------------------------------
+    # ---- Native test execution -------------------------------------------
 
     def _run_tests_native(self) -> None:
         """Run tests natively on Windows using nanvixd.exe."""
@@ -293,7 +486,7 @@ class PosixTestsBuild(ZScript):
         bin_dir = sysroot_path / "bin"
 
         # Skip if already present.
-        required = ["nanvixd.exe"]
+        required = ["nanvixd.exe", "kernel.elf"]
         if all((bin_dir / b).is_file() for b in required):
             log.info("Windows host binaries already present in sysroot")
             return
@@ -362,16 +555,17 @@ class PosixTestsBuild(ZScript):
                     dest.write_bytes(data)
                     log.info(f"Extracted {basename} to sysroot/bin/")
 
-        # Verify required binaries exist.
+        # Verify all required binaries exist.
         missing = [b for b in required if not (bin_dir / b).is_file()]
         if missing:
-            log.warning(
+            log.fatal(
                 f"Required Windows binaries missing after download: "
-                f"{', '.join(missing)}"
+                f"{', '.join(missing)}",
+                code=EXIT_MISSING_DEP,
+                hint="Check the Nanvix release page for Windows assets.",
             )
-            log.warning("Tests may not work without these binaries.")
-        else:
-            log.success("Windows host binaries installed")
+
+        log.success("Windows host binaries installed")
 
 
 if __name__ == "__main__":

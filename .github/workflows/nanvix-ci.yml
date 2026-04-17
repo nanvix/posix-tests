@@ -52,6 +52,8 @@ jobs:
 
       - name: Setup (download sysroot + Windows binaries)
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
         run: ./z.ps1 setup
 
       - name: Download Linux build artifacts
