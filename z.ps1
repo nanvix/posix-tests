@@ -29,7 +29,7 @@ $venvZutil = Join-Path $venvDir "Scripts\nanvix-zutil.exe"
 # Windows compatibility shim: nanvix-zutil references os.getuid/os.getgid
 # which are unavailable on Windows.  Stub them before importing the package.
 $ShimCode = @'
-import os,sys;os.getuid=getattr(os,"getuid",lambda:0);os.getgid=getattr(os,"getgid",lambda:0);from nanvix_zutil.__main__ import main;sys.exit(main())
+import os,sys;os.getuid=getattr(os,'getuid',lambda:0);os.getgid=getattr(os,'getgid',lambda:0);from nanvix_zutil.__main__ import main;sys.exit(main())
 '@
 
 $zutilGlobalVersion = try {
