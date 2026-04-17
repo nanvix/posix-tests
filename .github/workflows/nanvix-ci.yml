@@ -37,3 +37,27 @@ jobs:
     secrets:
       GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
       DISPATCH_TOKEN: ${{ secrets.DISPATCH_TOKEN || secrets.GITHUB_TOKEN }}
+
+  windows:
+    name: Windows (build + test)
+    runs-on: windows-latest
+    needs: []
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup
+        shell: pwsh
+        run: ./z.ps1 setup
+
+      - name: Build (Docker)
+        shell: pwsh
+        run: ./z.ps1 build
+
+      - name: Test
+        shell: pwsh
+        run: ./z.ps1 test
