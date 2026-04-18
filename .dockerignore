@@ -1,0 +1,8 @@
+# Exclude build artifacts and dev tooling from Docker context.
+build/
+dist/
+.nanvix/venv/
+.nanvix/cache/
+.nanvix/env.json
+.nanvix/.docker-image
+.git/
