@@ -211,11 +211,13 @@ class PosixTestsBuild(ZScript):
                 hint="Run `./z setup` first to download the sysroot.",
             )
         toolchain = self.config.get(CFG_TOOLCHAIN, "/opt/nanvix")
+        sysroot_p = self.translate_path(Path(sysroot))
+        toolchain_p = self.translate_path(Path(toolchain))
 
         args = [
             "make", "-C", "src",
-            f"{_MAKE_VAR_SYSROOT}={sysroot}",
-            f"{_MAKE_VAR_TOOLCHAIN}={toolchain}",
+            f"{_MAKE_VAR_SYSROOT}={sysroot_p}",
+            f"{_MAKE_VAR_TOOLCHAIN}={toolchain_p}",
             f"{_MAKE_VAR_PLATFORM}={self.config.machine}",
             f"{_MAKE_VAR_PROCESS_MODE}={self.config.deployment_mode}",
             f"{_MAKE_VAR_MEMORY_SIZE}={self.config.memory_size}",
