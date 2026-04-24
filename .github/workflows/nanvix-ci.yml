@@ -16,7 +16,7 @@ on:
       - "nanvix/**"
   workflow_dispatch:
   repository_dispatch:
-    types: [nanvix-minor-release, nanvix-major-release]
+    types: [ nanvix-minor-release, nanvix-major-release ]
 
 permissions:
   contents: write
@@ -33,7 +33,8 @@ jobs:
     uses: nanvix/workflows/.github/workflows/nanvix-ci.yml@v1.12.0
     with:
       zutil-version: "v0.7.26"
-      process-modes: '["standalone"]'
+      process-modes: "[\"standalone\"]"
+      skip-full-test-modes: "[]"
       caller-event-name: ${{ github.event_name }}
       windows-test: true
     secrets:

@@ -320,16 +320,11 @@ class PosixTestsBuild(ZScript):
     def test(self) -> None:
         """Run the POSIX test suites.
 
-        Without targets, runs the full suite (smoke + integration + functional).
-        With targets (e.g. ``./z test -- test-smoke test-integration``), passes
-        them directly to the Makefile.
+        Runs test binaries from the ``build/`` directory using
+        ``nanvixd`` from the sysroot.
         """
         self._overlay_local_nanvix()
-        if IS_WINDOWS:
-            self._run_tests_native()
-        else:
-            targets = self.targets if self.targets else ["test"]
-            self.run(*self._make_args(*targets), cwd=self.repo_root)
+        self._run_tests_native()
 
     def release(self) -> None:
         """Package the posix-tests release tarball and verify it."""
@@ -422,7 +417,7 @@ class PosixTestsBuild(ZScript):
     # ---- Native test execution -------------------------------------------
 
     def _run_tests_native(self) -> None:
-        """Run tests natively on Windows using nanvixd.exe."""
+        """Run test binaries from ``build/`` using ``nanvixd``."""
         sysroot = self.config.get(CFG_SYSROOT, "")
         if not sysroot:
             log.fatal(
@@ -430,12 +425,13 @@ class PosixTestsBuild(ZScript):
                 code=EXIT_MISSING_DEP,
                 hint="Run `./z setup` first.",
             )
-        nanvixd = Path(sysroot) / "bin" / "nanvixd.exe"
+        nanvixd_name = "nanvixd.exe" if IS_WINDOWS else "nanvixd.elf"
+        nanvixd = Path(sysroot) / "bin" / nanvixd_name
         if not nanvixd.is_file():
             log.fatal(
-                "nanvixd.exe not found in sysroot.",
+                f"{nanvixd_name} not found in sysroot.",
                 code=EXIT_MISSING_DEP,
-                hint="Run `./z setup` to download Windows host binaries.",
+                hint="Run `./z setup` first.",
             )
         build_dir = self.repo_root / "build"
 
@@ -449,21 +445,22 @@ class PosixTestsBuild(ZScript):
                 print(f"SKIP {suite} (binary not found)")
 
         # --- Integration tests ---
-        if self.config.deployment_mode == "standalone":
-            print("Skipping integration tests for standalone mode.")
-            return
-
         print("Running integration tests...")
         failed = []
+        bin_dir = str((Path(sysroot) / "bin").resolve())
         for suite in TESTABLE_SUITES:
             binary = build_dir / f"{suite}.elf"
             if not binary.is_file():
                 print(f"SKIP {suite}")
                 continue
             print(f"RUN  {suite}...")
+            cmd = [str(nanvixd.resolve()), "-bin-dir", bin_dir]
+            if not IS_WINDOWS:
+                cmd += ["-console-file", "/dev/stdout"]
+            cmd += ["--", str(binary.resolve())]
             try:
                 result = subprocess.run(
-                    [str(nanvixd.resolve()), "--", str(binary.resolve())],
+                    cmd,
                     stdin=subprocess.DEVNULL,
                     timeout=120,
                 )
