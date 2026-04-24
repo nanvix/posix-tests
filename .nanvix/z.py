@@ -86,22 +86,22 @@ class PosixTestsBuild(ZScript):
     _local_nanvix_path: str | None = None
 
     # posix-tests doesn't need mkramfs.elf (no ramfs images).
-    # Override the base class default which includes it.
-    if IS_WINDOWS:
-        # nanvixd.exe and kernel.elf are downloaded separately by
-        # _download_windows_binaries(), so don't require them here.
-        SYSROOT_REQUIRED_FILES: tuple[str, ...] = (
-            "lib/libposix.a",
-            "lib/user.ld",
-        )
-        SYSROOT_MULTI_PROCESS_FILES: tuple[str, ...] = ()
-    else:
-        SYSROOT_REQUIRED_FILES: tuple[str, ...] = (
-            "lib/libposix.a",
-            "lib/user.ld",
-            "bin/nanvixd.elf",
-            "bin/kernel.elf",
-        )
+    # Override the base class defaults which include it.
+    SYSROOT_REQUIRED_FILES: tuple[str, ...] = (
+        "lib/libposix.a",
+        "lib/user.ld",
+        "bin/nanvixd.elf",
+        "bin/kernel.elf",
+    )
+
+    # On Windows, nanvixd.exe and kernel.elf are downloaded separately
+    # by _download_windows_binaries(), so don't require them here.
+    SYSROOT_REQUIRED_FILES_WINDOWS: tuple[str, ...] = (
+        "lib/libposix.a",
+        "lib/user.ld",
+    )
+
+    SYSROOT_MULTI_PROCESS_FILES: tuple[str, ...] = ()
 
     # ---- CLI entry point -------------------------------------------------
 
@@ -210,7 +210,7 @@ class PosixTestsBuild(ZScript):
                 code=EXIT_MISSING_DEP,
                 hint="Run `./z setup` first to download the sysroot.",
             )
-        toolchain = self.config.get(CFG_TOOLCHAIN, "/opt/nanvix")
+        toolchain = self.config.get(CFG_TOOLCHAIN, "/opt/nanvix") or "/opt/nanvix"
         sysroot_p = self.translate_path(Path(sysroot))
         toolchain_p = self.translate_path(Path(toolchain))
 
@@ -228,13 +228,13 @@ class PosixTestsBuild(ZScript):
 
     def _has_native_toolchain(self) -> bool:
         """Check if the native cross-compilation toolchain is available."""
-        toolchain = self.config.get(CFG_TOOLCHAIN, "/opt/nanvix")
+        toolchain = self.config.get(CFG_TOOLCHAIN, "/opt/nanvix") or "/opt/nanvix"
         cc = Path(toolchain) / "bin" / "i686-nanvix-gcc"
         return cc.is_file()
 
     # ---- Lifecycle hooks -------------------------------------------------
 
-    def setup(self) -> None:
+    def setup(self) -> bool:
         """Download the Nanvix sysroot."""
         local_nanvix = self._local_nanvix_path
         if local_nanvix:
@@ -295,14 +295,16 @@ class PosixTestsBuild(ZScript):
             self.config.set(CFG_SYSROOT, str(self.sysroot.path))
             self.config.set(_CFG_LOCAL_NANVIX, local_nanvix)
             self.config.save()
+            used_fallback = False
         else:
-            super().setup()
+            used_fallback = super().setup()
 
         if IS_WINDOWS:
             self._download_windows_binaries()
 
         # Overlay local Nanvix binaries last so they take precedence.
         self._overlay_local_nanvix()
+        return used_fallback
 
     def build(self) -> None:
         """Cross-compile all POSIX test suites for Nanvix.
@@ -446,7 +448,7 @@ class PosixTestsBuild(ZScript):
 
         # --- Integration tests ---
         print("Running integration tests...")
-        failed = []
+        failed: list[str] = []
         bin_dir = str((Path(sysroot) / "bin").resolve())
         for suite in TESTABLE_SUITES:
             binary = build_dir / f"{suite}.elf"
@@ -489,7 +491,7 @@ class PosixTestsBuild(ZScript):
         """
         from nanvix_zutil import CFG_GH_TOKEN
 
-        sysroot_path = Path(self.config.get(CFG_SYSROOT))
+        sysroot_path = Path(self.config.get(CFG_SYSROOT) or "")
         bin_dir = sysroot_path / "bin"
 
         # Skip if already present.
@@ -499,7 +501,7 @@ class PosixTestsBuild(ZScript):
             return
 
         # Resolve the release tag.
-        tag = self.manifest.sysroot_ref.value
+        tag = str(self.manifest.sysroot_ref.value)
         if not tag.startswith("v"):
             tag = f"v{tag}"
 
@@ -535,7 +537,7 @@ class PosixTestsBuild(ZScript):
                 asset_name = name
                 break
 
-        if not asset_url:
+        if not asset_url or not asset_name:
             log.warning(
                 f"No Windows asset matching '{asset_prefix}*.zip' in release {tag}"
             )
