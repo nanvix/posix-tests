@@ -37,6 +37,4 @@ jobs:
       skip-full-test-modes: "[]"
       caller-event-name: ${{ github.event_name }}
       windows-test: true
-    secrets:
-      GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
-      DISPATCH_TOKEN: ${{ secrets.DISPATCH_TOKEN || secrets.GITHUB_TOKEN }}
+    secrets: inherit
