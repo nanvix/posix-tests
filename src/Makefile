@@ -64,7 +64,7 @@ export LIBRARIES_DIR ?= $(BINARIES_DIR)
 # Test Suites
 #===============================================================================
 
-SUITES := c-bindings dlfcn-c dlfcn-pie-c echo-c echo-cpp file-c hello-c hello-cpp memory-c misc-c network-c noop-c noop-cpp thread-c
+SUITES := c-bindings dlfcn-c dlfcn-global-c dlfcn-needed-c dlfcn-pie-c echo-c echo-cpp file-c hello-c hello-cpp memory-c misc-c network-c noop-c noop-cpp thread-c
 
 #===============================================================================
 # Build Rules
