@@ -32,7 +32,7 @@ jobs:
   ci:
     uses: nanvix/workflows/.github/workflows/nanvix-ci.yml@v1.13.0
     with:
-      zutil-version: "v0.7.39"
+      zutil-version: "v0.7.40"
       process-modes: "[\"standalone\",\"single-process\",\"multi-process\"]"
       skip-full-test-modes: "[]"
       caller-event-name: ${{ github.event_name }}
