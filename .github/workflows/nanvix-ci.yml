@@ -16,7 +16,7 @@ on:
       - "nanvix/**"
   workflow_dispatch:
   repository_dispatch:
-    types: [ nanvix-minor-release, nanvix-major-release ]
+    types: [nanvix-minor-release, nanvix-major-release]
 
 permissions:
   contents: write
