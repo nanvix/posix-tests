@@ -49,15 +49,33 @@ _MAKE_VAR_MEMORY_SIZE = "MEMORY_SIZE"
 
 # All test suites built by the Makefile.
 ALL_SUITES = [
-    "c-bindings", "dlfcn-c", "dlfcn-pie-c", "echo-c", "echo-cpp",
-    "file-c", "hello-c", "hello-cpp", "memory-c", "misc-c",
-    "network-c", "noop-c", "noop-cpp", "thread-c",
+    "c-bindings",
+    "dlfcn-c",
+    "dlfcn-pie-c",
+    "echo-c",
+    "echo-cpp",
+    "file-c",
+    "hello-c",
+    "hello-cpp",
+    "memory-c",
+    "misc-c",
+    "network-c",
+    "noop-c",
+    "noop-cpp",
+    "thread-c",
 ]
 
 # Suites that can run via plain nanvixd invocation (no special infra).
 TESTABLE_SUITES = [
-    "c-bindings", "echo-c", "echo-cpp", "hello-c", "hello-cpp",
-    "memory-c", "noop-c", "noop-cpp", "thread-c",
+    "c-bindings",
+    "echo-c",
+    "echo-cpp",
+    "hello-c",
+    "hello-cpp",
+    "memory-c",
+    "noop-c",
+    "noop-cpp",
+    "thread-c",
 ]
 
 # Docker image for cross-compilation.
@@ -129,17 +147,13 @@ class PosixTestsBuild(ZScript):
         Works on both Linux (ELF binaries) and Windows (.exe binaries).
         """
         # CLI flag takes precedence; fall back to persisted config.
-        nanvix_path = self._local_nanvix_path or self.config.get(
-            _CFG_LOCAL_NANVIX, ""
-        )
+        nanvix_path = self._local_nanvix_path or self.config.get(_CFG_LOCAL_NANVIX, "")
         if not nanvix_path:
             return
 
         nanvix_path = os.path.abspath(os.path.expanduser(nanvix_path))
         if not os.path.isdir(nanvix_path):
-            log.warning(
-                f"--with-nanvix path no longer exists: {nanvix_path}"
-            )
+            log.warning(f"--with-nanvix path no longer exists: {nanvix_path}")
             return
 
         # Persist so subsequent commands reuse the same path.
@@ -165,8 +179,10 @@ class PosixTestsBuild(ZScript):
             binaries = ["nanvixd.exe", "kernel.elf"]
         else:
             binaries = [
-                "nanvixd.elf", "kernel.elf",
-                "linuxd.elf", "uservm.elf",
+                "nanvixd.elf",
+                "kernel.elf",
+                "linuxd.elf",
+                "uservm.elf",
             ]
 
         for name in binaries:
@@ -215,7 +231,9 @@ class PosixTestsBuild(ZScript):
         toolchain_p = self.translate_path(Path(toolchain))
 
         args = [
-            "make", "-C", "src",
+            "make",
+            "-C",
+            "src",
             f"{_MAKE_VAR_SYSROOT}={sysroot_p}",
             f"{_MAKE_VAR_TOOLCHAIN}={toolchain_p}",
             f"{_MAKE_VAR_PLATFORM}={self.config.machine}",
@@ -260,8 +278,10 @@ class PosixTestsBuild(ZScript):
                 bin_names = ["nanvixd.exe", "kernel.elf"]
             else:
                 bin_names = [
-                    "nanvixd.elf", "kernel.elf",
-                    "linuxd.elf", "uservm.elf",
+                    "nanvixd.elf",
+                    "kernel.elf",
+                    "linuxd.elf",
+                    "uservm.elf",
                 ]
             for name in bin_names:
                 src = local / "bin" / name
@@ -373,13 +393,20 @@ class PosixTestsBuild(ZScript):
         log.info(f"Building via Docker ({docker_image})...")
         subprocess.run(
             [
-                "docker", "build",
-                "--build-arg", f"BASE_IMAGE={docker_image}",
-                "--build-arg", f"NANVIX_SYSROOT={sysroot_rel}",
-                "--build-arg", f"PLATFORM={self.config.machine}",
-                "--build-arg", f"PROCESS_MODE={self.config.deployment_mode}",
-                "--build-arg", f"MEMORY_SIZE={self.config.memory_size}",
-                "--output", "type=local,dest=build",
+                "docker",
+                "build",
+                "--build-arg",
+                f"BASE_IMAGE={docker_image}",
+                "--build-arg",
+                f"NANVIX_SYSROOT={sysroot_rel}",
+                "--build-arg",
+                f"PLATFORM={self.config.machine}",
+                "--build-arg",
+                f"PROCESS_MODE={self.config.deployment_mode}",
+                "--build-arg",
+                f"MEMORY_SIZE={self.config.memory_size}",
+                "--output",
+                "type=local,dest=build",
                 ".",
             ],
             cwd=self.repo_root,
