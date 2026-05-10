@@ -135,19 +135,19 @@ DIST_DIR := $(CURDIR)/../dist
 package: all
 	@echo "Packaging release..."
 	mkdir -p $(DIST_DIR)
-	tar cjf $(DIST_DIR)/posix-tests-$(PLATFORM)-$(PROCESS_MODE)-$(MEMORY_SIZE).tar.bz2 \
+	tar czf $(DIST_DIR)/posix-tests-$(PLATFORM)-$(PROCESS_MODE)-$(MEMORY_SIZE).tar.gz \
 		-C $(BINARIES_DIR) $(addsuffix .elf,$(SUITES))
-	@echo "Package: $(DIST_DIR)/posix-tests-$(PLATFORM)-$(PROCESS_MODE)-$(MEMORY_SIZE).tar.bz2"
+	@echo "Package: $(DIST_DIR)/posix-tests-$(PLATFORM)-$(PROCESS_MODE)-$(MEMORY_SIZE).tar.gz"
 
 verify-package:
 	@echo "Verifying package..."
-	@tarball="$(DIST_DIR)/posix-tests-$(PLATFORM)-$(PROCESS_MODE)-$(MEMORY_SIZE).tar.bz2"; \
+	@tarball="$(DIST_DIR)/posix-tests-$(PLATFORM)-$(PROCESS_MODE)-$(MEMORY_SIZE).tar.gz"; \
 	if [ ! -f "$$tarball" ]; then \
 		echo "ERROR: Package not found: $$tarball"; \
 		exit 1; \
 	fi; \
 	for suite in $(SUITES); do \
-		if ! tar tjf "$$tarball" | grep -q "$${suite}.elf"; then \
+		if ! tar tzf "$$tarball" | grep -q "$${suite}.elf"; then \
 			echo "ERROR: Missing $${suite}.elf in package"; \
 			exit 1; \
 		fi; \
