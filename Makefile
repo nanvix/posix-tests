@@ -66,10 +66,9 @@ $(NANVIX_DIR)/lib/libposix.a:
 		--jq '.content' 2>/dev/null | base64 -d) || true; \
 	CARGO_VERSION=$$(echo "$$CARGO_TOML" | grep -m1 '^version' | sed 's/.*"\(.*\)".*/\1/') || true; \
 	if [ -n "$$CARGO_VERSION" ]; then \
-		MAJOR_MINOR="$${CARGO_VERSION%.*}"; \
-		DOCKER_IMAGE="nanvix/toolchain:v$${MAJOR_MINOR}.x-minimal"; \
+		DOCKER_IMAGE="ghcr.io/nanvix/toolchain-gcc:latest"; \
 	else \
-		DOCKER_IMAGE="nanvix/toolchain:latest-minimal"; \
+		DOCKER_IMAGE="ghcr.io/nanvix/toolchain-gcc:latest"; \
 	fi; \
 	echo "  Docker image: $$DOCKER_IMAGE"; \
 	TMPDIR=$$(mktemp -d); \
