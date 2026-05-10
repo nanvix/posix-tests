@@ -19,6 +19,7 @@ MEMORY_SIZE ?= 128mb
 # Cross-compiler.
 export CC := $(NANVIX_TOOLCHAIN)/bin/i686-nanvix-gcc
 export CXX := $(NANVIX_TOOLCHAIN)/bin/i686-nanvix-g++
+export READELF := $(NANVIX_TOOLCHAIN)/bin/i686-nanvix-readelf
 
 # Compiler flags.
 export CFLAGS := -std=c17

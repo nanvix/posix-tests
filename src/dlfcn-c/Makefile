@@ -20,7 +20,7 @@ clean: libs-clean
 libs-all:
 	$(CC) libs/mul.c -shared -fPIC -o $(LIBRARIES_DIR)/libmul.so
 	@for TYPE in $(REQUIRED_TYPES); do \
-	if ! readelf -r $(LIBRARIES_DIR)/libmul.so | grep -q $$TYPE; then \
+	if ! $(READELF) -r $(LIBRARIES_DIR)/libmul.so | grep -q $$TYPE; then \
 	echo "Error: Relocation type $$TYPE not found in $(LIBRARIES_DIR)/libmul.so"; \
 	exit 1; \
 	fi \
