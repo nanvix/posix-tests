@@ -62,15 +62,7 @@ $(NANVIX_DIR)/lib/libposix.a:
 	fi; \
 	echo "  Release: $$TAG_NAME"; \
 	echo "  Asset: $$ASSET_NAME"; \
-	CARGO_TOML=$$(gh api "repos/$(NANVIX_REPO)/contents/Cargo.toml?ref=$$TAG_NAME" \
-		--jq '.content' 2>/dev/null | base64 -d) || true; \
-	CARGO_VERSION=$$(echo "$$CARGO_TOML" | grep -m1 '^version' | sed 's/.*"\(.*\)".*/\1/') || true; \
-	if [ -n "$$CARGO_VERSION" ]; then \
-		MAJOR_MINOR="$${CARGO_VERSION%.*}"; \
-		DOCKER_IMAGE="nanvix/toolchain:v$${MAJOR_MINOR}.x-minimal"; \
-	else \
-		DOCKER_IMAGE="nanvix/toolchain:latest-minimal"; \
-	fi; \
+	DOCKER_IMAGE="ghcr.io/nanvix/toolchain-gcc:sha-34a3641"; \
 	echo "  Docker image: $$DOCKER_IMAGE"; \
 	TMPDIR=$$(mktemp -d); \
 	gh release download "$$TAG_NAME" --repo "$(NANVIX_REPO)" \

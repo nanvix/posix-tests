@@ -12,7 +12,7 @@
 #   'make init' must be run first to download the Nanvix release into .nanvix/.
 
 # BASE_IMAGE is resolved by 'make init' and saved in .nanvix/.docker-image.
-ARG BASE_IMAGE=nanvix/toolchain:latest-minimal
+ARG BASE_IMAGE=ghcr.io/nanvix/toolchain-gcc:sha-34a3641
 FROM ${BASE_IMAGE} AS builder
 
 WORKDIR /workspace

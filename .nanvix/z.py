@@ -79,7 +79,7 @@ TESTABLE_SUITES = [
 ]
 
 # Docker image for cross-compilation.
-DOCKER_IMAGE = "nanvix/toolchain:latest-minimal"
+DOCKER_IMAGE = "ghcr.io/nanvix/toolchain-gcc:sha-34a3641"
 
 # Windows host-native binaries needed for test execution.
 WINDOWS_HOST_BINARIES = ["nanvixd.exe", "kernel.elf"]
@@ -419,11 +419,10 @@ class PosixTestsBuild(ZScript):
         log.success(f"Built {len(elfs)} test binaries in build/")
 
     def _resolve_docker_image(self) -> str:
-        """Resolve the Docker image tag from the Nanvix version.
+        """Resolve the Docker image tag for cross-compilation.
 
-        Derives the tag from the nanvix-version in nanvix.toml:
-        ``0.12.432`` → ``nanvix/toolchain:v0.12.x-minimal``.
-        Falls back to ``latest-minimal`` if the version is unavailable.
+        Returns the fixed GHCR toolchain-gcc image tag.
+        Falls back to the cached ``.docker-image`` file if present.
         """
         # Check for cached .docker-image (from 'make init').
         cached = self.repo_root / ".nanvix" / ".docker-image"
@@ -431,15 +430,6 @@ class PosixTestsBuild(ZScript):
             tag = cached.read_text().strip()
             if tag:
                 return tag
-
-        # Derive from nanvix-version in manifest.
-        version = getattr(self.manifest, "sysroot_ref", None)
-        if version:
-            ver = version.value.lstrip("v")
-            parts = ver.split(".")
-            if len(parts) >= 2:
-                major_minor = f"{parts[0]}.{parts[1]}"
-                return f"nanvix/toolchain:v{major_minor}.x-minimal"
 
         return DOCKER_IMAGE
 

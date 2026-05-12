@@ -74,7 +74,7 @@ make run SUITE=file-c
 ### Cross-Compilation
 
 Test suites are cross-compiled using the `i686-nanvix-gcc` toolchain inside the
-[`nanvix/toolchain`](https://hub.docker.com/r/nanvix/toolchain) minimal Docker image.
+[`ghcr.io/nanvix/toolchain-gcc`](https://github.com/nanvix/toolchain-gcc/pkgs/container/toolchain-gcc) Docker image.
 
 Each test suite is linked against:
 
