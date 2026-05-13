@@ -6,7 +6,7 @@
 #===============================================================================
 
 # Nanvix sysroot (set by the host Makefile or z.py).
-NANVIX_SYSROOT ?= ../.nanvix
+NANVIX_SYSROOT ?= ../.nanvix/sysroot
 
 # Toolchain directory (set by the Docker image).
 NANVIX_TOOLCHAIN ?= /opt/nanvix

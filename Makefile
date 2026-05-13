@@ -30,9 +30,15 @@ BINARIES := $(addsuffix .elf,$(SUITES))
 all: $(addprefix build/,$(BINARIES))
 
 # Build all test suite ELFs inside Docker and export to build/.
-build/%.elf: src/ Makefile Dockerfile $(NANVIX_DIR)/lib/libposix.a
-	DOCKER_BUILDKIT=1 docker build \
-		--build-arg BASE_IMAGE=$$(cat $(NANVIX_DIR)/.docker-image) \
+# BASE_IMAGE is read from the .docker-image cache if present (written by
+# `make init`); otherwise the Dockerfile's default BASE_IMAGE is used.
+build/%.elf: src/ Makefile Dockerfile $(NANVIX_DIR)/sysroot/lib/libposix.a
+	@BASE_IMAGE_ARG=""; \
+	if [ -f $(NANVIX_DIR)/.docker-image ]; then \
+		BASE_IMAGE_ARG="--build-arg BASE_IMAGE=$$(cat $(NANVIX_DIR)/.docker-image)"; \
+	fi; \
+	set -x; \
+	DOCKER_BUILDKIT=1 docker build $$BASE_IMAGE_ARG \
 		--build-arg PLATFORM=$(PLATFORM) \
 		--build-arg PROCESS_MODE=$(PROCESS_MODE) \
 		--build-arg MEMORY_SIZE=$(MEMORY_SIZE) \
@@ -41,7 +47,7 @@ build/%.elf: src/ Makefile Dockerfile $(NANVIX_DIR)/lib/libposix.a
 
 # Run a specific test suite on Nanvix.
 run: build/$(SUITE).elf
-	$(NANVIX_DIR)/bin/nanvixd.elf -bin-dir $(NANVIX_DIR)/bin -console-file /dev/stdout -- ./build/$(SUITE).elf
+	$(NANVIX_DIR)/sysroot/bin/nanvixd.elf -bin-dir $(NANVIX_DIR)/sysroot/bin -console-file /dev/stdout -- ./build/$(SUITE).elf
 
 clean:
 	rm -rf build
@@ -57,9 +63,9 @@ compile:
 # Init — download the latest Nanvix release and resolve the Docker image tag
 #===============================================================================
 
-init: $(NANVIX_DIR)/lib/libposix.a
+init: $(NANVIX_DIR)/sysroot/lib/libposix.a
 
-$(NANVIX_DIR)/lib/libposix.a:
+$(NANVIX_DIR)/sysroot/lib/libposix.a:
 	@echo "Downloading the latest Nanvix release..."
 	@RELEASE_INFO=$$(gh release view --repo "$(NANVIX_REPO)" --json tagName,assets); \
 	TAG_NAME=$$(echo "$$RELEASE_INFO" | jq -r '.tagName'); \
@@ -83,16 +89,15 @@ $(NANVIX_DIR)/lib/libposix.a:
 	gh release download "$$TAG_NAME" --repo "$(NANVIX_REPO)" \
 		--pattern "$$ASSET_NAME" \
 		--dir "$$TMPDIR"; \
-	mkdir -p $(NANVIX_DIR); \
-	tar xjf "$$TMPDIR/$$ASSET_NAME" -C $(NANVIX_DIR) --strip-components=1; \
+	mkdir -p $(NANVIX_DIR)/sysroot; \
+	tar xjf "$$TMPDIR/$$ASSET_NAME" -C $(NANVIX_DIR)/sysroot --strip-components=1; \
 	rm -rf "$$TMPDIR"; \
 	echo "$$DOCKER_IMAGE" > $(NANVIX_DIR)/.docker-image; \
 	echo ""; \
-	echo "Done. Nanvix release extracted to $(NANVIX_DIR)/."
+	echo "Done. Nanvix release extracted to $(NANVIX_DIR)/sysroot/."
 
 distclean: clean
 	rm -rf $(NANVIX_DIR)/sysroot $(NANVIX_DIR)/cache $(NANVIX_DIR)/buildroot
 	rm -rf $(NANVIX_DIR)/venv $(NANVIX_DIR)/env.json $(NANVIX_DIR)/.docker-image
-	rm -rf $(NANVIX_DIR)/lib $(NANVIX_DIR)/bin $(NANVIX_DIR)/include
 
 .PHONY: all run compile clean init distclean

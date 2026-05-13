@@ -28,7 +28,7 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-from nanvix_zutil import CFG_SYSROOT, CFG_TOOLCHAIN, EXIT_MISSING_DEP, ZScript, log
+from nanvix_zutil import CFG_TOOLCHAIN, EXIT_MISSING_DEP, ZScript, log
 
 # ---------------------------------------------------------------------------
 # Platform detection
@@ -161,12 +161,8 @@ class PosixTestsBuild(ZScript):
             self.config.set(_CFG_LOCAL_NANVIX, nanvix_path)
             self.config.save()
 
-        sysroot = self.config.get(CFG_SYSROOT, "")
-        if not sysroot:
-            return
-
         nanvix_dir = Path(nanvix_path)
-        sysroot_path = Path(sysroot)
+        sysroot_path = self.nanvix_dir / "sysroot"
 
         log.info(f"Overlaying local Nanvix binaries from {nanvix_dir}")
 
@@ -219,15 +215,8 @@ class PosixTestsBuild(ZScript):
 
     def _make_args(self, *targets: str) -> list[str]:
         """Build the common make argument list."""
-        sysroot = self.config.get(CFG_SYSROOT, "")
-        if not sysroot:
-            log.fatal(
-                f"{CFG_SYSROOT} is not set.",
-                code=EXIT_MISSING_DEP,
-                hint="Run `./z setup` first to download the sysroot.",
-            )
         toolchain = self.config.get(CFG_TOOLCHAIN, "/opt/nanvix") or "/opt/nanvix"
-        sysroot_p = self.translate_path(Path(sysroot))
+        sysroot_p = self.translate_path(self.nanvix_dir / "sysroot")
         toolchain_p = self.translate_path(Path(toolchain))
 
         args = [
@@ -312,7 +301,6 @@ class PosixTestsBuild(ZScript):
 
             self.sysroot = Sysroot(sysroot_dir.resolve())
             self.sysroot.verify(self.sysroot_required_files())
-            self.config.set(CFG_SYSROOT, str(self.sysroot.path))
             self.config.set(_CFG_LOCAL_NANVIX, local_nanvix)
             self.config.save()
             used_fallback = False
@@ -382,13 +370,7 @@ class PosixTestsBuild(ZScript):
         build_dir = self.repo_root / "build"
         build_dir.mkdir(exist_ok=True)
 
-        # Determine the sysroot path relative to the repo root.
-        # nanvix-zutil places files in .nanvix/sysroot/; the old 'make init'
-        # places them directly in .nanvix/.  Pass the correct path so the
-        # Dockerfile can forward it to Make.
         sysroot_rel = ".nanvix/sysroot"
-        if not (self.repo_root / sysroot_rel / "lib" / "libposix.a").is_file():
-            sysroot_rel = ".nanvix"
 
         log.info(f"Building via Docker ({docker_image})...")
         subprocess.run(
@@ -437,15 +419,9 @@ class PosixTestsBuild(ZScript):
 
     def _run_tests_native(self) -> None:
         """Run test binaries from ``build/`` using ``nanvixd``."""
-        sysroot = self.config.get(CFG_SYSROOT, "")
-        if not sysroot:
-            log.fatal(
-                f"{CFG_SYSROOT} is not set.",
-                code=EXIT_MISSING_DEP,
-                hint="Run `./z setup` first.",
-            )
+        sysroot = self.nanvix_dir / "sysroot"
         nanvixd_name = "nanvixd.exe" if IS_WINDOWS else "nanvixd.elf"
-        nanvixd = Path(sysroot) / "bin" / nanvixd_name
+        nanvixd = sysroot / "bin" / nanvixd_name
         if not nanvixd.is_file():
             log.fatal(
                 f"{nanvixd_name} not found in sysroot.",
@@ -466,7 +442,7 @@ class PosixTestsBuild(ZScript):
         # --- Integration tests ---
         print("Running integration tests...")
         failed: list[str] = []
-        bin_dir = str((Path(sysroot) / "bin").resolve())
+        bin_dir = str((sysroot / "bin").resolve())
         for suite in TESTABLE_SUITES:
             binary = build_dir / f"{suite}.elf"
             if not binary.is_file():
@@ -508,7 +484,7 @@ class PosixTestsBuild(ZScript):
         """
         from nanvix_zutil import CFG_GH_TOKEN
 
-        sysroot_path = Path(self.config.get(CFG_SYSROOT) or "")
+        sysroot_path = self.nanvix_dir / "sysroot"
         bin_dir = sysroot_path / "bin"
 
         # Skip if already present.
