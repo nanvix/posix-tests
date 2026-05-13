@@ -41,7 +41,6 @@ IS_WINDOWS = sys.platform == "win32"
 # ---------------------------------------------------------------------------
 
 # Makefile variable names (build-system-specific).
-_MAKE_VAR_SYSROOT = "NANVIX_SYSROOT"
 _MAKE_VAR_TOOLCHAIN = "NANVIX_TOOLCHAIN"
 _MAKE_VAR_PLATFORM = "PLATFORM"
 _MAKE_VAR_PROCESS_MODE = "PROCESS_MODE"
@@ -216,14 +215,12 @@ class PosixTestsBuild(ZScript):
     def _make_args(self, *targets: str) -> list[str]:
         """Build the common make argument list."""
         toolchain = self.config.get(CFG_TOOLCHAIN, "/opt/nanvix") or "/opt/nanvix"
-        sysroot_p = self.translate_path(self.nanvix_dir / "sysroot")
         toolchain_p = self.translate_path(Path(toolchain))
 
         args = [
             "make",
             "-C",
             "src",
-            f"{_MAKE_VAR_SYSROOT}={sysroot_p}",
             f"{_MAKE_VAR_TOOLCHAIN}={toolchain_p}",
             f"{_MAKE_VAR_PLATFORM}={self.config.machine}",
             f"{_MAKE_VAR_PROCESS_MODE}={self.config.deployment_mode}",
@@ -370,8 +367,6 @@ class PosixTestsBuild(ZScript):
         build_dir = self.repo_root / "build"
         build_dir.mkdir(exist_ok=True)
 
-        sysroot_rel = ".nanvix/sysroot"
-
         log.info(f"Building via Docker ({docker_image})...")
         subprocess.run(
             [
@@ -379,8 +374,6 @@ class PosixTestsBuild(ZScript):
                 "build",
                 "--build-arg",
                 f"BASE_IMAGE={docker_image}",
-                "--build-arg",
-                f"NANVIX_SYSROOT={sysroot_rel}",
                 "--build-arg",
                 f"PLATFORM={self.config.machine}",
                 "--build-arg",

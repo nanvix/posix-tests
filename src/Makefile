@@ -5,8 +5,9 @@
 # Build Configuration
 #===============================================================================
 
-# Nanvix sysroot (set by the host Makefile or z.py).
-NANVIX_SYSROOT ?= ../.nanvix/sysroot
+# Nanvix sysroot. Always at .nanvix/sysroot/ relative to the repo root.
+# Resolved to an absolute path because per-suite makes run from src/<suite>/.
+SYSROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))../.nanvix/sysroot)
 
 # Toolchain directory (set by the Docker image).
 NANVIX_TOOLCHAIN ?= /opt/nanvix
@@ -46,10 +47,10 @@ CXXFLAGS += -D__NANVIX_STANDALONE__
 endif
 
 # Linker flags.
-export LDFLAGS := -z noexecstack -T $(NANVIX_SYSROOT)/lib/user.ld
+export LDFLAGS := -z noexecstack -T $(SYSROOT)/lib/user.ld
 
 # Libraries.
-export LIBPOSIX := $(NANVIX_SYSROOT)/lib/libposix.a
+export LIBPOSIX := $(SYSROOT)/lib/libposix.a
 export LIBC := $(NANVIX_TOOLCHAIN)/i686-nanvix/lib/libc.a
 export LIBRARIES := -Wl,--start-group $(LIBPOSIX) $(LIBC) -Wl,--end-group
 export LIBCXX := $(NANVIX_TOOLCHAIN)/i686-nanvix/lib/libstdc++.a
@@ -122,7 +123,7 @@ else
 			continue; \
 		fi; \
 		echo "RUN  $$suite..."; \
-		$(NANVIX_SYSROOT)/bin/nanvixd.elf -console-file /dev/stdout -- "$$binary" && echo "OK   $$suite" || { echo "FAIL $$suite"; exit 1; }; \
+		$(SYSROOT)/bin/nanvixd.elf -bin-dir $(SYSROOT)/bin -console-file /dev/stdout -- "$$binary" && echo "OK   $$suite" || { echo "FAIL $$suite"; exit 1; }; \
 	done
 endif
 
