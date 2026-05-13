@@ -11,6 +11,12 @@ NANVIX_REPO ?= nanvix/nanvix
 # Nanvix release directory (populated by 'make init').
 NANVIX_DIR ?= .nanvix
 
+# Build/runtime knobs (must match Dockerfile defaults). Used both to select the
+# correct release asset in 'make init' and to parameterize the Docker build.
+PLATFORM     ?= microvm
+PROCESS_MODE ?= multi-process
+MEMORY_SIZE  ?= 128mb
+
 # Test suites to build.
 SUITES := c-bindings dlfcn-c dlfcn-pie-c echo-c echo-cpp file-c hello-c hello-cpp memory-c misc-c network-c noop-c noop-cpp thread-c
 
@@ -27,12 +33,15 @@ all: $(addprefix build/,$(BINARIES))
 build/%.elf: src/ Makefile Dockerfile $(NANVIX_DIR)/lib/libposix.a
 	DOCKER_BUILDKIT=1 docker build \
 		--build-arg BASE_IMAGE=$$(cat $(NANVIX_DIR)/.docker-image) \
+		--build-arg PLATFORM=$(PLATFORM) \
+		--build-arg PROCESS_MODE=$(PROCESS_MODE) \
+		--build-arg MEMORY_SIZE=$(MEMORY_SIZE) \
 		--output type=local,dest=build .
 	@touch $(addprefix build/,$(BINARIES))
 
 # Run a specific test suite on Nanvix.
 run: build/$(SUITE).elf
-	$(NANVIX_DIR)/bin/nanvixd.elf -console-file /dev/stdout -- ./build/$(SUITE).elf
+	$(NANVIX_DIR)/bin/nanvixd.elf -bin-dir $(NANVIX_DIR)/bin -console-file /dev/stdout -- ./build/$(SUITE).elf
 
 clean:
 	rm -rf build
@@ -54,10 +63,16 @@ $(NANVIX_DIR)/lib/libposix.a:
 	@echo "Downloading the latest Nanvix release..."
 	@RELEASE_INFO=$$(gh release view --repo "$(NANVIX_REPO)" --json tagName,assets); \
 	TAG_NAME=$$(echo "$$RELEASE_INFO" | jq -r '.tagName'); \
-	ASSET_NAME=$$(echo "$$RELEASE_INFO" | jq -r \
-		'.assets[] | select(.name | startswith("nanvix-x86-microvm-multi-process-release")) | .name'); \
+	ASSET_PREFIX="nanvix-x86-$(PLATFORM)-$(PROCESS_MODE)-release-$(MEMORY_SIZE)-"; \
+	ASSET_NAME=$$(echo "$$RELEASE_INFO" | jq -r --arg prefix "$$ASSET_PREFIX" \
+		'.assets[] | select(.name | startswith($$prefix)) | .name'); \
 	if [ -z "$$ASSET_NAME" ]; then \
-		echo "ERROR: Could not find a microvm multi-process release asset." >&2; \
+		echo "ERROR: Could not find a release asset starting with '$$ASSET_PREFIX'." >&2; \
+		exit 1; \
+	fi; \
+	if [ "$$(echo "$$ASSET_NAME" | wc -l)" -ne 1 ]; then \
+		echo "ERROR: Multiple release assets matched '$$ASSET_PREFIX':" >&2; \
+		echo "$$ASSET_NAME" >&2; \
 		exit 1; \
 	fi; \
 	echo "  Release: $$TAG_NAME"; \
