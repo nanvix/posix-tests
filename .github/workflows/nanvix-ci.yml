@@ -40,7 +40,7 @@ jobs:
       memory-sizes: '["128mb"]'
       windows-matrix-exclude: '[]'
       skip-full-test-modes: '[]'
-      caller-event-name: ${{ github.event_name }}
+      caller-event-name: ${{ github.event_name == 'workflow_dispatch' && 'schedule' || github.event_name }}
       windows-test: true
     secrets:
       GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
