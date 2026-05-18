@@ -24,6 +24,9 @@ static void test_getenv_set(void)
 {
     fprintf(stderr, "testing getenv() set ... ");
 
+    int rc = putenv("NANVIX_TEST=1");
+    assert(rc == 0);
+
     const char *value = getenv("NANVIX_TEST");
     assert(value != NULL);
     assert(strcmp(value, "1") == 0);
