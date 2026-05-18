@@ -80,6 +80,17 @@ TESTABLE_SUITES = [
     "thread-c",
 ]
 
+# Suites that require ramfs-bundled shared libraries and only run in standalone mode.
+STANDALONE_ONLY_SUITES = [
+    "dlfcn-c",
+]
+
+# Shared libraries that must be bundled into the ramfs for specific suites.
+# Maps suite name to a list of (source_filename_in_build_dir, ramfs_target_path).
+SUITE_RAMFS_LIBS: dict[str, list[tuple[str, str]]] = {
+    "dlfcn-c": [("libmul.so", "lib/libmul.so")],
+}
+
 # Docker image for cross-compilation.
 DOCKER_IMAGE = "ghcr.io/nanvix/toolchain-gcc:sha-34a3641"
 
@@ -495,7 +506,7 @@ class PosixTestsBuild(ZScript):
         make_initrd resolves binary paths relative to it.
         """
         failed: list[str] = []
-        for suite in TESTABLE_SUITES:
+        for suite in TESTABLE_SUITES + STANDALONE_ONLY_SUITES:
             binary = build_dir / f"{suite}.elf"
             if not binary.is_file():
                 print(f"SKIP {suite}")
@@ -518,6 +529,22 @@ class PosixTestsBuild(ZScript):
                     ramfs_dir = tmp_path / "ramfs"
                     ramfs_dir.mkdir()
                     (ramfs_dir / "tmp").mkdir()
+
+                    # Bundle shared libraries required by this suite.
+                    libs_missing = False
+                    for src_name, ramfs_path in SUITE_RAMFS_LIBS.get(suite, []):
+                        src_lib = build_dir / src_name
+                        if not src_lib.is_file():
+                            print(f"FAIL {suite}: missing shared library {src_lib}")
+                            failed.append(suite)
+                            libs_missing = True
+                            break
+                        dst_lib = ramfs_dir / ramfs_path
+                        dst_lib.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(src_lib, dst_lib)
+                    if libs_missing:
+                        continue
+
                     ramfs_img = tmp_path / "rootfs.img"
 
                     self.run(

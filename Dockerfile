@@ -37,6 +37,7 @@ RUN mkdir -p build && make compile \
     PROCESS_MODE=${PROCESS_MODE} \
     MEMORY_SIZE=${MEMORY_SIZE}
 
-# Export the compiled binaries.
+# Export the compiled binaries and shared libraries.
 FROM scratch
 COPY --from=builder /workspace/build/*.elf /
+COPY --from=builder /workspace/build/*.so /
