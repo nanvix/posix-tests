@@ -22,6 +22,7 @@ Options:
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import urllib.request
@@ -527,7 +528,7 @@ class PosixTestsBuild(ZScript):
                         timeout=60,
                     )
 
-                    self.run(
+                    cmd = [
                         str(nanvixd),
                         "-bin-dir",
                         str(sysroot_path / "bin"),
@@ -535,14 +536,25 @@ class PosixTestsBuild(ZScript):
                         str(ramfs_img),
                         "--",
                         str(initrd),
-                        docker=False,
+                    ]
+                    log.info(f"$ {' '.join(cmd)}")
+                    subprocess.run(
+                        cmd,
+                        cwd=self.repo_root,
+                        stdin=subprocess.DEVNULL,
+                        text=True,
+                        check=True,
                         timeout=120,
                     )
                 print(f"OK   {suite}")
             except FileExistsError as exc:
                 print(f"FAIL {suite} ({exc})")
                 failed.append(suite)
-            except SystemExit:
+            except (
+                SystemExit,
+                subprocess.CalledProcessError,
+                subprocess.TimeoutExpired,
+            ):
                 print(f"FAIL {suite}")
                 failed.append(suite)
             finally:
@@ -594,7 +606,7 @@ class PosixTestsBuild(ZScript):
                         timeout=60,
                     )
 
-                    self.run(
+                    cmd = [
                         str(nanvixd),
                         "-bin-dir",
                         str(sysroot_path / "bin"),
@@ -602,11 +614,22 @@ class PosixTestsBuild(ZScript):
                         str(ramfs_img),
                         "--",
                         str(binary.resolve()),
-                        docker=False,
+                    ]
+                    log.info(f"$ {' '.join(cmd)}")
+                    subprocess.run(
+                        cmd,
+                        cwd=self.repo_root,
+                        stdin=subprocess.DEVNULL,
+                        text=True,
+                        check=True,
                         timeout=120,
                     )
                 print(f"OK   {suite}")
-            except SystemExit:
+            except (
+                SystemExit,
+                subprocess.CalledProcessError,
+                subprocess.TimeoutExpired,
+            ):
                 print(f"FAIL {suite}")
                 failed.append(suite)
 
