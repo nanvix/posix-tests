@@ -75,6 +75,7 @@ TESTABLE_SUITES = [
     "hello-c",
     "hello-cpp",
     "memory-c",
+    "misc-c",
     "noop-c",
     "noop-cpp",
     "thread-c",
@@ -525,7 +526,12 @@ class PosixTestsBuild(ZScript):
                         )
                     shutil.copy2(binary, repo_elf)
                     copied_elf = True
-                initrd = self.make_initrd(binary.name)
+                if binary.name == "misc-c.elf":
+                    # misc-c.elf is a special case that needs the test
+                    # environment variable set to pass its internal checks.
+                    initrd = self.make_initrd(binary.name, app_env=["NANVIX_TEST=1"])
+                else:
+                    initrd = self.make_initrd(binary.name)
                 with tempfile.TemporaryDirectory(prefix=f"posix_test_{suite}_") as tmp:
                     tmp_path = Path(tmp)
                     ramfs_dir = tmp_path / "ramfs"
@@ -645,6 +651,12 @@ class PosixTestsBuild(ZScript):
                         "--",
                         str(binary.resolve()),
                     ]
+                    # nanvixd packs args and env vars into a separate
+                    # positional argument after the binary path:
+                    #   nanvixd ... -- <binary> "<args>;<env vars>"
+                    # For env-only, use ";KEY=VALUE".
+                    if suite == "misc-c":
+                        cmd.append(";NANVIX_TEST=1")
                     log.info(f"$ {' '.join(cmd)}")
                     subprocess.run(
                         cmd,
