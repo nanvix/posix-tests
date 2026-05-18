@@ -4,6 +4,13 @@
  */
 
 //==================================================================================================
+// Configuration
+//==================================================================================================
+
+/* Must come first. */
+#define _POSIX_C_SOURCE 200809
+
+//==================================================================================================
 // Imports
 //==================================================================================================
 
@@ -12,6 +19,7 @@
 #include <limits.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 //==================================================================================================
@@ -22,8 +30,11 @@ void test_chdir(void)
 {
     fprintf(stderr, "testing chdir() ... ");
 
-    const char *dirname = "src";
+    const char *dirname = "testdir_chdir";
     assert(strlen(dirname) <= NAME_MAX);
+
+    // Create a temporary directory.
+    assert(mkdir(dirname, S_IRUSR | S_IWUSR | S_IXUSR) == 0);
 
     char original_cwd[PATH_MAX];
     char new_cwd[PATH_MAX];
@@ -44,6 +55,9 @@ void test_chdir(void)
     // Verify the current working directory is restored.
     assert(getcwd(new_cwd, sizeof(new_cwd)) != NULL);
     assert(strcmp(new_cwd, original_cwd) == 0);
+
+    // Clean up.
+    assert(unlinkat(AT_FDCWD, dirname, AT_REMOVEDIR) == 0);
 
     fprintf(stderr, "passed\n");
 }

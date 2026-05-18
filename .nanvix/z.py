@@ -71,6 +71,7 @@ TESTABLE_SUITES = [
     "c-bindings",
     "echo-c",
     "echo-cpp",
+    "file-c",
     "hello-c",
     "hello-cpp",
     "memory-c",
