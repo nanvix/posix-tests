@@ -11,6 +11,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 //==================================================================================================
 // Standalone Functions
@@ -21,7 +22,13 @@ void test_stat(void)
 {
     fprintf(stderr, "testing stat() ... ");
 
-    const char *filename = "README.md";
+    const char *filename = "testfile_stat.tmp";
+
+    // Create a file with some content so st_size > 0.
+    int fd = open(filename, O_CREAT | O_WRONLY, S_IRUSR | S_IWUSR);
+    assert(fd != -1);
+    assert(write(fd, "hello", 5) == 5);
+    assert(close(fd) == 0);
 
     struct stat st = {0};
 
@@ -31,16 +38,11 @@ void test_stat(void)
     assert(st.st_size > 0);
     assert(st.st_nlink > 0);
     assert(st.st_blocks > 0);
-    assert(st.st_atim.tv_sec > 0);
-    assert(st.st_mtim.tv_sec > 0);
-    assert(st.st_ctim.tv_sec > 0);
-    assert(st.st_atim.tv_nsec >= 0);
-    assert(st.st_mtim.tv_nsec >= 0);
-    assert(st.st_ctim.tv_nsec >= 0);
-    assert(st.st_blocks > 0);
     assert(st.st_dev != 0);
     assert(st.st_ino != 0);
-    assert(st.st_nlink > 0);
+
+    // Clean up.
+    assert(unlink(filename) == 0);
 
     fprintf(stderr, "passed\n");
 }

@@ -19,6 +19,7 @@
 #include <limits.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 //==================================================================================================
@@ -30,7 +31,10 @@ void test_fchdir(void)
 {
     fprintf(stderr, "testing fchdir() ... ");
 
-    const char *TARGET_DIRECTORY = "src/";
+    const char *TARGET_DIRECTORY = "testdir_fchdir";
+
+    // Create a temporary directory.
+    assert(mkdir(TARGET_DIRECTORY, S_IRUSR | S_IWUSR | S_IXUSR) == 0);
 
     char initial_working_directory[PATH_MAX] = {0};
 
@@ -82,6 +86,9 @@ void test_fchdir(void)
     // Close initial directory.
     ret = close(initial_directory_fd);
     assert(ret == 0);
+
+    // Clean up.
+    assert(unlinkat(AT_FDCWD, TARGET_DIRECTORY, AT_REMOVEDIR) == 0);
 
     fprintf(stderr, "passed\n");
 }
