@@ -76,6 +76,7 @@ TESTABLE_SUITES = [
     "hello-cpp",
     "memory-c",
     "misc-c",
+    "network-c",
     "noop-c",
     "noop-cpp",
     "thread-c",
@@ -86,6 +87,11 @@ STANDALONE_ONLY_SUITES = [
     "dlfcn-c",
     "dlfcn-pie-c",
 ]
+
+# Suites that require host networking (passed as -allow-host-networking to nanvixd).
+SUITES_REQUIRING_NETWORKING: set[str] = {
+    "network-c",
+}
 
 # Shared libraries that must be bundled into the ramfs for specific suites.
 # Maps suite name to a list of (source_filename_in_build_dir, ramfs_target_path).
@@ -570,9 +576,10 @@ class PosixTestsBuild(ZScript):
                         str(sysroot_path / "bin"),
                         "-ramfs",
                         str(ramfs_img),
-                        "--",
-                        str(initrd),
                     ]
+                    if suite in SUITES_REQUIRING_NETWORKING:
+                        cmd.append("-allow-host-networking")
+                    cmd.extend(["--", str(initrd)])
                     log.info(f"$ {' '.join(cmd)}")
                     subprocess.run(
                         cmd,
@@ -648,9 +655,11 @@ class PosixTestsBuild(ZScript):
                         str(sysroot_path / "bin"),
                         "-ramfs",
                         str(ramfs_img),
-                        "--",
-                        str(binary.resolve()),
                     ]
+                    if suite in SUITES_REQUIRING_NETWORKING:
+                        cmd.append("-allow-host-networking")
+                    cmd.append("--")
+                    cmd.append(str(binary))
                     # nanvixd packs args and env vars into a separate
                     # positional argument after the binary path:
                     #   nanvixd ... -- <binary> "<args>;<env vars>"
