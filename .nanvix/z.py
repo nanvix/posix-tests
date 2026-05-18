@@ -513,7 +513,7 @@ class PosixTestsBuild(ZScript):
                     copied_elf = True
                 initrd = self.make_initrd(
                     binary.name,
-                    kernel_args=["NANVIX_TEST=1"],
+                    app_args=[";NANVIX_TEST=1"],
                 )
                 with tempfile.TemporaryDirectory(prefix=f"posix_test_{suite}_") as tmp:
                     tmp_path = Path(tmp)
@@ -604,10 +604,9 @@ class PosixTestsBuild(ZScript):
                         str(sysroot_path / "bin"),
                         "-ramfs",
                         str(ramfs_img),
-                        "-initrd_args",
-                        "NANVIX_TEST=1",
                         "--",
                         str(binary.resolve()),
+                        ";NANVIX_TEST=1",
                         docker=False,
                         timeout=120,
                     )
