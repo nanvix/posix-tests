@@ -32,10 +32,13 @@ int main(int argc, const char *argv[])
     (void)argv;
 
     // Assert command-line arguments.
-    assert(argc == 1);
+    // In standalone mode argv[0] is "misc-c" (no extension);
+    // in non-standalone modes argv[0] is an absolute path to misc-c.elf.
+    assert(argc >= 1);
     assert(argv[0] != NULL);
-    assert(argv[1] == NULL);
-    assert(strcmp(argv[0], "misc-c.elf") == 0);
+    const char *base = strrchr(argv[0], '/');
+    base = base ? base + 1 : argv[0];
+    assert(strncmp(base, "misc-c", 6) == 0);
 
     test_getuid();
     test_getgid();
