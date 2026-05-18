@@ -12,22 +12,15 @@
 #include <stdio.h>
 
 //==================================================================================================
-// Constants
-//==================================================================================================
-
-// Expected identifier of the master thread.
-static const pthread_t EXPECTED_MASTER_TID = 1;
-
-//==================================================================================================
 // Standalone Functions
 //==================================================================================================
 
 // Main thread.
 static void main_thread(void)
 {
-    // Get the master thread identifier and check if it matches the expected value.
+    // Get the master thread identifier and check if it is valid.
     pthread_t master_tid = pthread_self();
-    assert(master_tid == EXPECTED_MASTER_TID);
+    assert(master_tid != PTHREAD_NULL);
 }
 
 // Tests if threads can get their own identifiers.

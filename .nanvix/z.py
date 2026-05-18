@@ -22,8 +22,8 @@ Options:
 import json
 import os
 import shutil
-import subprocess
 import sys
+import tempfile
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -82,7 +82,7 @@ TESTABLE_SUITES = [
 DOCKER_IMAGE = "ghcr.io/nanvix/toolchain-gcc:sha-34a3641"
 
 # Windows host-native binaries needed for test execution.
-WINDOWS_HOST_BINARIES = ["nanvixd.exe", "kernel.elf"]
+WINDOWS_HOST_BINARIES = ["nanvixd.exe", "kernel.elf", "mkramfs.exe"]
 
 # Config key for persisting the --with-nanvix path in env.json.
 _CFG_LOCAL_NANVIX = "local_nanvix_path"
@@ -103,13 +103,12 @@ class PosixTestsBuild(ZScript):
 
     _local_nanvix_path: str | None = None
 
-    # posix-tests doesn't need mkramfs.elf (no ramfs images).
-    # Override the base class defaults which include it.
     SYSROOT_REQUIRED_FILES: tuple[str, ...] = (
         "lib/libposix.a",
         "lib/user.ld",
         "bin/nanvixd.elf",
         "bin/kernel.elf",
+        "bin/mkramfs.elf",
     )
 
     # On Windows, nanvixd.exe and kernel.elf are downloaded separately
@@ -176,11 +175,12 @@ class PosixTestsBuild(ZScript):
         bin_dst.mkdir(parents=True, exist_ok=True)
 
         if IS_WINDOWS:
-            binaries = ["nanvixd.exe", "kernel.elf"]
+            binaries = ["nanvixd.exe", "kernel.elf", "mkramfs.exe"]
         else:
             binaries = [
                 "nanvixd.elf",
                 "kernel.elf",
+                "mkramfs.elf",
                 "linuxd.elf",
                 "uservm.elf",
             ]
@@ -275,11 +275,12 @@ class PosixTestsBuild(ZScript):
             bin_dst = sysroot_dir / "bin"
             bin_dst.mkdir()
             if IS_WINDOWS:
-                bin_names = ["nanvixd.exe", "kernel.elf"]
+                bin_names = ["nanvixd.exe", "kernel.elf", "mkramfs.exe"]
             else:
                 bin_names = [
                     "nanvixd.elf",
                     "kernel.elf",
+                    "mkramfs.elf",
                     "linuxd.elf",
                     "uservm.elf",
                 ]
@@ -391,27 +392,25 @@ class PosixTestsBuild(ZScript):
             sysroot_rel = ".nanvix"
 
         log.info(f"Building via Docker ({docker_image})...")
-        subprocess.run(
-            [
-                "docker",
-                "build",
-                "--build-arg",
-                f"BASE_IMAGE={docker_image}",
-                "--build-arg",
-                f"NANVIX_SYSROOT={sysroot_rel}",
-                "--build-arg",
-                f"PLATFORM={self.config.machine}",
-                "--build-arg",
-                f"PROCESS_MODE={self.config.deployment_mode}",
-                "--build-arg",
-                f"MEMORY_SIZE={self.config.memory_size}",
-                "--output",
-                "type=local,dest=build",
-                ".",
-            ],
+        os.environ.setdefault("DOCKER_BUILDKIT", "1")
+        self.run(
+            "docker",
+            "build",
+            "--build-arg",
+            f"BASE_IMAGE={docker_image}",
+            "--build-arg",
+            f"NANVIX_SYSROOT={sysroot_rel}",
+            "--build-arg",
+            f"PLATFORM={self.config.machine}",
+            "--build-arg",
+            f"PROCESS_MODE={self.config.deployment_mode}",
+            "--build-arg",
+            f"MEMORY_SIZE={self.config.memory_size}",
+            "--output",
+            "type=local,dest=build",
+            ".",
+            docker=False,
             cwd=self.repo_root,
-            check=True,
-            env={**os.environ, "DOCKER_BUILDKIT": "1"},
         )
 
         # Count produced binaries.
@@ -444,11 +443,20 @@ class PosixTestsBuild(ZScript):
                 code=EXIT_MISSING_DEP,
                 hint="Run `./z setup` first.",
             )
+        sysroot_path = Path(sysroot)
         nanvixd_name = "nanvixd.exe" if IS_WINDOWS else "nanvixd.elf"
-        nanvixd = Path(sysroot) / "bin" / nanvixd_name
+        nanvixd = sysroot_path / "bin" / nanvixd_name
         if not nanvixd.is_file():
             log.fatal(
                 f"{nanvixd_name} not found in sysroot.",
+                code=EXIT_MISSING_DEP,
+                hint="Run `./z setup` first.",
+            )
+        mkramfs_name = "mkramfs.exe" if IS_WINDOWS else "mkramfs.elf"
+        mkramfs = sysroot_path / "bin" / mkramfs_name
+        if not mkramfs.is_file():
+            log.fatal(
+                f"{mkramfs_name} not found in sysroot.",
                 code=EXIT_MISSING_DEP,
                 hint="Run `./z setup` first.",
             )
@@ -465,31 +473,141 @@ class PosixTestsBuild(ZScript):
 
         # --- Integration tests ---
         print("Running integration tests...")
+        if self.config.deployment_mode == "standalone":
+            self._run_tests_standalone(build_dir, sysroot_path, nanvixd, mkramfs)
+        else:
+            self._run_tests_non_standalone(build_dir, sysroot_path, nanvixd, mkramfs)
+
+    def _run_tests_standalone(
+        self,
+        build_dir: Path,
+        sysroot_path: Path,
+        nanvixd: Path,
+        mkramfs: Path,
+    ) -> None:
+        """Run integration tests in standalone mode using make_initrd.
+
+        Creates an initrd bundling each test ELF with system daemons
+        via make_initrd, and a ramfs providing /tmp for any test I/O.
+        The ELF is temporarily copied to the repo root because
+        make_initrd resolves binary paths relative to it.
+        """
         failed: list[str] = []
-        bin_dir = str((Path(sysroot) / "bin").resolve())
         for suite in TESTABLE_SUITES:
             binary = build_dir / f"{suite}.elf"
             if not binary.is_file():
                 print(f"SKIP {suite}")
                 continue
             print(f"RUN  {suite}...")
-            cmd = [str(nanvixd.resolve()), "-bin-dir", bin_dir]
-            if not IS_WINDOWS:
-                cmd += ["-console-file", "/dev/stdout"]
-            cmd += ["--", str(binary.resolve())]
+            repo_elf = self.repo_root / binary.name
+            copied_elf = False
+            initrd: Path | None = None
             try:
-                result = subprocess.run(
-                    cmd,
-                    stdin=subprocess.DEVNULL,
-                    timeout=120,
-                )
-                if result.returncode != 0:
-                    print(f"FAIL {suite} (exit code {result.returncode})")
-                    failed.append(suite)
-                else:
-                    print(f"OK   {suite}")
-            except subprocess.TimeoutExpired:
-                print(f"FAIL {suite} (timeout)")
+                if binary.resolve() != repo_elf.resolve():
+                    if repo_elf.exists():
+                        raise FileExistsError(
+                            f"refusing to clobber existing {repo_elf}"
+                        )
+                    shutil.copy2(binary, repo_elf)
+                    copied_elf = True
+                initrd = self.make_initrd(binary.name)
+                with tempfile.TemporaryDirectory(prefix=f"posix_test_{suite}_") as tmp:
+                    tmp_path = Path(tmp)
+                    ramfs_dir = tmp_path / "ramfs"
+                    ramfs_dir.mkdir()
+                    (ramfs_dir / "tmp").mkdir()
+                    ramfs_img = tmp_path / "rootfs.img"
+
+                    self.run(
+                        str(mkramfs),
+                        "-o",
+                        str(ramfs_img),
+                        str(ramfs_dir),
+                        docker=False,
+                        timeout=60,
+                    )
+
+                    self.run(
+                        str(nanvixd),
+                        "-bin-dir",
+                        str(sysroot_path / "bin"),
+                        "-ramfs",
+                        str(ramfs_img),
+                        "--",
+                        str(initrd),
+                        docker=False,
+                        timeout=120,
+                    )
+                print(f"OK   {suite}")
+            except FileExistsError as exc:
+                print(f"FAIL {suite} ({exc})")
+                failed.append(suite)
+            except SystemExit:
+                print(f"FAIL {suite}")
+                failed.append(suite)
+            finally:
+                if initrd is not None and initrd.exists():
+                    initrd.unlink()
+                if copied_elf and repo_elf.exists():
+                    repo_elf.unlink()
+
+        if failed:
+            raise RuntimeError(
+                f"{len(failed)} test suite(s) failed: {' '.join(failed)}"
+            )
+        print("\t\t*** POSIX tests PASSED ***")
+
+    def _run_tests_non_standalone(
+        self,
+        build_dir: Path,
+        sysroot_path: Path,
+        nanvixd: Path,
+        mkramfs: Path,
+    ) -> None:
+        """Run integration tests in multi-process or single-process mode.
+
+        Uses nanvixd directly with a ramfs providing /tmp for any
+        test I/O. No initrd is needed as daemons are managed by the
+        hypervisor in these modes.
+        """
+        failed: list[str] = []
+        for suite in TESTABLE_SUITES:
+            binary = build_dir / f"{suite}.elf"
+            if not binary.is_file():
+                print(f"SKIP {suite}")
+                continue
+            print(f"RUN  {suite}...")
+            try:
+                with tempfile.TemporaryDirectory(prefix=f"posix_test_{suite}_") as tmp:
+                    tmp_path = Path(tmp)
+                    ramfs_dir = tmp_path / "ramfs"
+                    ramfs_dir.mkdir()
+                    (ramfs_dir / "tmp").mkdir()
+                    ramfs_img = tmp_path / "rootfs.img"
+
+                    self.run(
+                        str(mkramfs),
+                        "-o",
+                        str(ramfs_img),
+                        str(ramfs_dir),
+                        docker=False,
+                        timeout=60,
+                    )
+
+                    self.run(
+                        str(nanvixd),
+                        "-bin-dir",
+                        str(sysroot_path / "bin"),
+                        "-ramfs",
+                        str(ramfs_img),
+                        "--",
+                        str(binary.resolve()),
+                        docker=False,
+                        timeout=120,
+                    )
+                print(f"OK   {suite}")
+            except SystemExit:
+                print(f"FAIL {suite}")
                 failed.append(suite)
 
         if failed:
@@ -512,7 +630,7 @@ class PosixTestsBuild(ZScript):
         bin_dir = sysroot_path / "bin"
 
         # Skip if already present.
-        required = ["nanvixd.exe", "kernel.elf"]
+        required = ["nanvixd.exe", "kernel.elf", "mkramfs.exe"]
         if all((bin_dir / b).is_file() for b in required):
             log.info("Windows host binaries already present in sysroot")
             return

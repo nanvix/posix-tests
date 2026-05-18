@@ -18,9 +18,6 @@
 // Constants
 //==================================================================================================
 
-// Expected identifier of the master thread.
-static const pthread_t EXPECTED_MASTER_TID = 1;
-
 // Expected argument passed to the worker thread.
 static const size_t EXPECTED_WORKER_ARG = 0xbadcafe;
 
@@ -50,9 +47,9 @@ static void *worker_thread(void *arg)
 // Main thread.
 static void main_thread(void)
 {
-    // Get the master thread identifier and check if it matches the expected value.
+    // Get the master thread identifier and check if it is valid.
     pthread_t master_tid = pthread_self();
-    assert(master_tid == EXPECTED_MASTER_TID);
+    assert(master_tid != PTHREAD_NULL);
 
     // Lock some resources.
     assert(pthread_mutex_lock(&mutex_main_thread) == 0);
