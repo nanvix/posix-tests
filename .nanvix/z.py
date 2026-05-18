@@ -83,12 +83,14 @@ TESTABLE_SUITES = [
 # Suites that require ramfs-bundled shared libraries and only run in standalone mode.
 STANDALONE_ONLY_SUITES = [
     "dlfcn-c",
+    "dlfcn-pie-c",
 ]
 
 # Shared libraries that must be bundled into the ramfs for specific suites.
 # Maps suite name to a list of (source_filename_in_build_dir, ramfs_target_path).
 SUITE_RAMFS_LIBS: dict[str, list[tuple[str, str]]] = {
     "dlfcn-c": [("libmul.so", "lib/libmul.so")],
+    "dlfcn-pie-c": [("libmul-pie.so", "lib/libmul-pie.so")],
 }
 
 # Docker image for cross-compilation.
