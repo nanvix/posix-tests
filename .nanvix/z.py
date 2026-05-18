@@ -550,12 +550,14 @@ class PosixTestsBuild(ZScript):
             except FileExistsError as exc:
                 print(f"FAIL {suite} ({exc})")
                 failed.append(suite)
-            except (
-                SystemExit,
-                subprocess.CalledProcessError,
-                subprocess.TimeoutExpired,
-            ):
-                print(f"FAIL {suite}")
+            except subprocess.CalledProcessError as exc:
+                print(f"FAIL {suite} (exit code {exc.returncode})")
+                failed.append(suite)
+            except subprocess.TimeoutExpired as exc:
+                print(f"FAIL {suite} (timed out after {exc.timeout}s)")
+                failed.append(suite)
+            except SystemExit as exc:
+                print(f"FAIL {suite} (SystemExit code={exc.code})")
                 failed.append(suite)
             finally:
                 if initrd is not None and initrd.exists():
@@ -564,9 +566,7 @@ class PosixTestsBuild(ZScript):
                     repo_elf.unlink()
 
         if failed:
-            raise RuntimeError(
-                f"{len(failed)} test suite(s) failed: {' '.join(failed)}"
-            )
+            sys.exit(f"{len(failed)} test suite(s) failed: {' '.join(failed)}")
         print("\t\t*** POSIX tests PASSED ***")
 
     def _run_tests_non_standalone(
@@ -625,18 +625,18 @@ class PosixTestsBuild(ZScript):
                         timeout=120,
                     )
                 print(f"OK   {suite}")
-            except (
-                SystemExit,
-                subprocess.CalledProcessError,
-                subprocess.TimeoutExpired,
-            ):
-                print(f"FAIL {suite}")
+            except subprocess.CalledProcessError as exc:
+                print(f"FAIL {suite} (exit code {exc.returncode})")
+                failed.append(suite)
+            except subprocess.TimeoutExpired as exc:
+                print(f"FAIL {suite} (timed out after {exc.timeout}s)")
+                failed.append(suite)
+            except SystemExit as exc:
+                print(f"FAIL {suite} (SystemExit code={exc.code})")
                 failed.append(suite)
 
         if failed:
-            raise RuntimeError(
-                f"{len(failed)} test suite(s) failed: {' '.join(failed)}"
-            )
+            sys.exit(f"{len(failed)} test suite(s) failed: {' '.join(failed)}")
         print("\t\t*** POSIX tests PASSED ***")
 
     # ---- Windows: binary download ----------------------------------------
