@@ -73,6 +73,7 @@ TESTABLE_SUITES = [
     "hello-c",
     "hello-cpp",
     "memory-c",
+    "misc-c",
     "noop-c",
     "noop-cpp",
     "thread-c",
