@@ -104,7 +104,15 @@ SUITE_RAMFS_LIBS: dict[str, list[tuple[str, str]]] = {
 DOCKER_IMAGE = "ghcr.io/nanvix/toolchain-gcc:sha-34a3641"
 
 # Windows host-native binaries needed for test execution.
-WINDOWS_HOST_BINARIES = ["nanvixd.exe", "kernel.elf", "mkramfs.exe"]
+WINDOWS_HOST_BINARIES = [
+    "nanvixd.exe",
+    "kernel.elf",
+    "mkimage.exe",
+    "mkramfs.exe",
+    "procd.elf",
+    "memd.elf",
+    "vfsd.elf",
+]
 
 # Config key for persisting the --with-nanvix path in env.json.
 _CFG_LOCAL_NANVIX = "local_nanvix_path"
@@ -197,14 +205,26 @@ class PosixTestsBuild(ZScript):
         bin_dst.mkdir(parents=True, exist_ok=True)
 
         if IS_WINDOWS:
-            binaries = ["nanvixd.exe", "kernel.elf", "mkramfs.exe"]
+            binaries = [
+                "nanvixd.exe",
+                "kernel.elf",
+                "mkimage.exe",
+                "mkramfs.exe",
+                "procd.elf",
+                "memd.elf",
+                "vfsd.elf",
+            ]
         else:
             binaries = [
                 "nanvixd.elf",
                 "kernel.elf",
+                "mkimage.elf",
                 "mkramfs.elf",
                 "linuxd.elf",
                 "uservm.elf",
+                "procd.elf",
+                "memd.elf",
+                "vfsd.elf",
             ]
 
         for name in binaries:
@@ -297,14 +317,26 @@ class PosixTestsBuild(ZScript):
             bin_dst = sysroot_dir / "bin"
             bin_dst.mkdir()
             if IS_WINDOWS:
-                bin_names = ["nanvixd.exe", "kernel.elf", "mkramfs.exe"]
+                bin_names = [
+                    "nanvixd.exe",
+                    "kernel.elf",
+                    "mkimage.exe",
+                    "mkramfs.exe",
+                    "procd.elf",
+                    "memd.elf",
+                    "vfsd.elf",
+                ]
             else:
                 bin_names = [
                     "nanvixd.elf",
                     "kernel.elf",
+                    "mkimage.elf",
                     "mkramfs.elf",
                     "linuxd.elf",
                     "uservm.elf",
+                    "procd.elf",
+                    "memd.elf",
+                    "vfsd.elf",
                 ]
             for name in bin_names:
                 src = local / "bin" / name
@@ -704,7 +736,7 @@ class PosixTestsBuild(ZScript):
         bin_dir = sysroot_path / "bin"
 
         # Skip if already present.
-        required = ["nanvixd.exe", "kernel.elf", "mkramfs.exe"]
+        required = WINDOWS_HOST_BINARIES
         if all((bin_dir / b).is_file() for b in required):
             log.info("Windows host binaries already present in sysroot")
             return
