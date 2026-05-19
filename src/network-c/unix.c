@@ -112,6 +112,9 @@ void test_unix_sockets(char sun_path[])
     strncpy(sockaddr.sun_path, sun_path, sizeof(sockaddr.sun_path) - 1);
     sockaddr.sun_path[sizeof(sockaddr.sun_path) - 1] = '\0';
 
+    // Clean up any leftover socket file from a previous run.
+    unlink(sun_path);
+
     test_create_socket(domain, type, protocol);
     test_bind_socket(domain, type, protocol, (const struct sockaddr *)&sockaddr, sizeof(sockaddr));
     test_listen_socket(
