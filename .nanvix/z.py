@@ -122,7 +122,7 @@ _CFG_LOCAL_NANVIX = "local_nanvix_path"
 # ---------------------------------------------------------------------------
 # The nanvix-zutil CLI inspects sys.argv to find the subcommand *before*
 # calling PosixTestsBuild.main().  The shell wrappers (z.sh / z.ps1) strip
-# --with-nanvix PATH from argv and pass it via the NANVIX_LOCAL_PATH
+# --with-nanvix PATH from argv and pass it via the WITH_NANVIX
 # environment variable.  Pick it up here at import time.
 
 _EARLY_LOCAL_NANVIX: str | None = os.environ.get("WITH_NANVIX") or None
