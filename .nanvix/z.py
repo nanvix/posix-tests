@@ -125,7 +125,7 @@ _CFG_LOCAL_NANVIX = "local_nanvix_path"
 # --with-nanvix PATH from argv and pass it via the NANVIX_LOCAL_PATH
 # environment variable.  Pick it up here at import time.
 
-_EARLY_LOCAL_NANVIX: str | None = os.environ.get("NANVIX_LOCAL_PATH") or None
+_EARLY_LOCAL_NANVIX: str | None = os.environ.get("WITH_NANVIX") or None
 
 
 class PosixTestsBuild(ZScript):
