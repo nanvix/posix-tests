@@ -24,12 +24,19 @@ import os
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import urllib.request
 import zipfile
 from pathlib import Path
 
-from nanvix_zutil import CFG_SYSROOT, TOOLCHAIN_CONTAINER_PATH, EXIT_MISSING_DEP, ZScript, log
+from nanvix_zutil import (
+    CFG_SYSROOT,
+    TOOLCHAIN_CONTAINER_PATH,
+    EXIT_MISSING_DEP,
+    ZScript,
+    log,
+)
 
 # ---------------------------------------------------------------------------
 # Platform detection
@@ -52,6 +59,8 @@ _MAKE_VAR_MEMORY_SIZE = "MEMORY_SIZE"
 ALL_SUITES = [
     "c-bindings",
     "dlfcn-c",
+    "dlfcn-global-c",
+    "dlfcn-needed-c",
     "dlfcn-pie-c",
     "echo-c",
     "echo-cpp",
@@ -392,7 +401,7 @@ class PosixTestsBuild(ZScript):
         if IS_WINDOWS or not self._has_native_toolchain():
             self._docker_build()
         else:
-            self.run(*self._make_args("all"), cwd=self.repo_root)
+            self.run(*self._make_args("all"), cwd=self.repo_root, docker=True)
 
     def test(self) -> None:
         """Run the POSIX test suites.
@@ -410,8 +419,42 @@ class PosixTestsBuild(ZScript):
             log.warning("Release packaging is not supported on Windows.")
             log.warning("Use a Linux host or CI to build release tarballs.")
             return
-        self.run(*self._make_args("package"), cwd=self.repo_root)
-        self.run(*self._make_args("verify-package"), cwd=self.repo_root)
+
+        build_dir = self.repo_root / "build"
+        dist_dir = self.repo_root / "dist"
+        dist_dir.mkdir(parents=True, exist_ok=True)
+
+        artifact = (
+            f"posix-tests-{self.config.machine}-{self.config.deployment_mode}"
+            f"-{self.config.memory_size}.tar.gz"
+        )
+        tarball = dist_dir / artifact
+
+        log.info("Packaging release...")
+        missing = [s for s in ALL_SUITES if not (build_dir / f"{s}.elf").is_file()]
+        if missing:
+            log.fatal(
+                f"Missing test binaries: {', '.join(missing)}",
+                code=EXIT_MISSING_DEP,
+                hint="Run `./z build` first.",
+            )
+
+        with tarfile.open(tarball, "w:gz") as tf:
+            for suite in ALL_SUITES:
+                src = build_dir / f"{suite}.elf"
+                tf.add(src, arcname=f"{suite}.elf")
+        log.info(f"Package: {tarball}")
+
+        log.info("Verifying package...")
+        with tarfile.open(tarball, "r:gz") as tf:
+            names = set(tf.getnames())
+        for suite in ALL_SUITES:
+            if f"{suite}.elf" not in names:
+                log.fatal(
+                    f"Missing {suite}.elf in package",
+                    code=EXIT_MISSING_DEP,
+                )
+        log.success(f"Package verified: {tarball}")
 
     def clean(self) -> None:
         """Remove build artifacts."""
@@ -421,7 +464,7 @@ class PosixTestsBuild(ZScript):
                 shutil.rmtree(build_dir)
                 log.info("Removed build/")
         else:
-            self.run("make", "-C", "src", "clean", cwd=self.repo_root)
+            self.run("make", "-C", "src", "clean", cwd=self.repo_root, docker=False)
 
     # ---- Docker build ----------------------------------------------------
 
