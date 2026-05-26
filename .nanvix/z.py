@@ -32,11 +32,14 @@ from pathlib import Path
 
 from nanvix_zutil import (
     CFG_SYSROOT,
-    TOOLCHAIN_CONTAINER_PATH,
     EXIT_MISSING_DEP,
+    TOOLCHAIN_CONTAINER_PATH,
     ZScript,
     log,
+    make_initrd,
+    run,
 )
+from nanvix_zutil.helpers import InitRdArgs
 
 # ---------------------------------------------------------------------------
 # Platform detection
@@ -277,9 +280,10 @@ class PosixTestsBuild(ZScript):
                 code=EXIT_MISSING_DEP,
                 hint="Run `./z setup` first to download the sysroot.",
             )
-        toolchain = str(TOOLCHAIN_CONTAINER_PATH)
-        sysroot_p = self.translate_path(Path(sysroot))
-        toolchain_p = toolchain
+        toolchain_p = str(TOOLCHAIN_CONTAINER_PATH)
+        sysroot_p = (
+            self.docker.translate_path(Path(sysroot)) if self.docker else Path(sysroot)
+        )
 
         args = [
             "make",
@@ -401,7 +405,7 @@ class PosixTestsBuild(ZScript):
         if IS_WINDOWS or not self._has_native_toolchain():
             self._docker_build()
         else:
-            self.run(*self._make_args("all"), cwd=self.repo_root, docker=True)
+            run(*self._make_args("all"), cwd=self.repo_root, docker=self.docker)
 
     def test(self) -> None:
         """Run the POSIX test suites.
@@ -464,7 +468,7 @@ class PosixTestsBuild(ZScript):
                 shutil.rmtree(build_dir)
                 log.info("Removed build/")
         else:
-            self.run("make", "-C", "src", "clean", cwd=self.repo_root, docker=False)
+            run("make", "-C", "src", "clean", cwd=self.repo_root)
 
     # ---- Docker build ----------------------------------------------------
 
@@ -490,7 +494,7 @@ class PosixTestsBuild(ZScript):
 
         log.info(f"Building via Docker ({docker_image})...")
         os.environ.setdefault("DOCKER_BUILDKIT", "1")
-        self.run(
+        run(
             "docker",
             "build",
             "--build-arg",
@@ -506,7 +510,6 @@ class PosixTestsBuild(ZScript):
             "--output",
             "type=local,dest=build",
             ".",
-            docker=False,
             cwd=self.repo_root,
         )
 
@@ -610,9 +613,11 @@ class PosixTestsBuild(ZScript):
                 if binary.name == "misc-c.elf":
                     # misc-c.elf is a special case that needs the test
                     # environment variable set to pass its internal checks.
-                    initrd = self.make_initrd(binary.name, app_env=["NANVIX_TEST=1"])
+                    initrd = make_initrd(
+                        self, binary.name, InitRdArgs(app_env=["NANVIX_TEST=1"])
+                    )
                 else:
-                    initrd = self.make_initrd(binary.name)
+                    initrd = make_initrd(self, binary.name)
                 with tempfile.TemporaryDirectory(prefix=f"posix_test_{suite}_") as tmp:
                     tmp_path = Path(tmp)
                     ramfs_dir = tmp_path / "ramfs"
@@ -636,12 +641,11 @@ class PosixTestsBuild(ZScript):
 
                     ramfs_img = tmp_path / "rootfs.img"
 
-                    self.run(
+                    run(
                         str(mkramfs),
                         "-o",
                         str(ramfs_img),
                         str(ramfs_dir),
-                        docker=False,
                         timeout=60,
                     )
 
@@ -715,12 +719,11 @@ class PosixTestsBuild(ZScript):
                     (ramfs_dir / "tmp").mkdir()
                     ramfs_img = tmp_path / "rootfs.img"
 
-                    self.run(
+                    run(
                         str(mkramfs),
                         "-o",
                         str(ramfs_img),
                         str(ramfs_dir),
-                        docker=False,
                         timeout=60,
                     )
 
