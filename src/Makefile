@@ -64,11 +64,9 @@ export LIBNVX_CRT0 := $(wildcard $(NANVIX_SYSROOT)/lib/libnvx_crt0.a)
 # copies are byte-identical (same source, same release profile), so it
 # is safe to let the linker take whichever it sees first.  See the
 # `libnvx_crt0-duplicates-sys-symbols` upstream issue for the proper fix.
-export LIBRARIES := -Wl,--allow-multiple-definition \
-                    -Wl,--start-group $(LIBNVX_CRT0) $(LIBPOSIX) $(LIBC) -Wl,--end-group
+export LIBRARIES := -Wl,--start-group $(LIBNVX_CRT0) $(LIBPOSIX) $(LIBC) -Wl,--end-group
 export LIBCXX := $(NANVIX_TOOLCHAIN)/i686-nanvix/lib/libstdc++.a
-export LIBRARIES_CXX := -Wl,--allow-multiple-definition \
-                        -Wl,--start-group $(LIBNVX_CRT0) $(LIBPOSIX) $(LIBC) $(LIBCXX) -Wl,--end-group
+export LIBRARIES_CXX := -Wl,--start-group $(LIBNVX_CRT0) $(LIBPOSIX) $(LIBC) $(LIBCXX) -Wl,--end-group
 
 # Output directory for compiled binaries.
 export BINARIES_DIR ?= $(CURDIR)/../build
