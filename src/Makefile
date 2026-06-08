@@ -51,9 +51,24 @@ export LDFLAGS := -z noexecstack -T $(NANVIX_SYSROOT)/lib/user.ld
 # Libraries.
 export LIBPOSIX := $(NANVIX_SYSROOT)/lib/libposix.a
 export LIBC := $(NANVIX_TOOLCHAIN)/i686-nanvix/lib/libc.a
-export LIBRARIES := -Wl,--start-group $(LIBPOSIX) $(LIBC) -Wl,--end-group
+# libnvx_crt0.a provides the `_start` entry point starting with PR-11b
+# (`nanvix/nanvix#2453`).  Prior to that release `_start` lived inside
+# libposix.a, so include libnvx_crt0 only when present in the sysroot
+# (the `$(wildcard ...)` evaluates to empty on older releases, keeping
+# this Makefile compatible with both layouts).  Without this, test
+# ELFs built against the new sysroot fall back to newlib's weak default
+# `_start` and hang at startup with no output.
+export LIBNVX_CRT0 := $(wildcard $(NANVIX_SYSROOT)/lib/libnvx_crt0.a)
+# --allow-multiple-definition: libnvx_crt0 and libposix both bundle the
+# `sys` crate (Rust FFI symbols `__kcall_*` are exported by both).  Both
+# copies are byte-identical (same source, same release profile), so it
+# is safe to let the linker take whichever it sees first.  See the
+# `libnvx_crt0-duplicates-sys-symbols` upstream issue for the proper fix.
+export LIBRARIES := -Wl,--allow-multiple-definition \
+                    -Wl,--start-group $(LIBNVX_CRT0) $(LIBPOSIX) $(LIBC) -Wl,--end-group
 export LIBCXX := $(NANVIX_TOOLCHAIN)/i686-nanvix/lib/libstdc++.a
-export LIBRARIES_CXX := -Wl,--start-group $(LIBPOSIX) $(LIBC) $(LIBCXX) -Wl,--end-group
+export LIBRARIES_CXX := -Wl,--allow-multiple-definition \
+                        -Wl,--start-group $(LIBNVX_CRT0) $(LIBPOSIX) $(LIBC) $(LIBCXX) -Wl,--end-group
 
 # Output directory for compiled binaries.
 export BINARIES_DIR ?= $(CURDIR)/../build
