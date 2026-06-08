@@ -444,20 +444,6 @@ class PosixTestsBuild(ZScript):
         self._overlay_local_nanvix()
         self._run_tests_native()
 
-    def release(self) -> None:
-        """Package the posix-tests release tarball.
-
-        Staging happens in ``build()``; this override only short-circuits
-        on Windows (no release packaging supported) and delegates to the
-        inherited ``ZScript.release()`` everywhere else.
-        """
-        self._overlay_local_nanvix()
-        if IS_WINDOWS:
-            log.warning("Release packaging is not supported on Windows.")
-            log.warning("Use a Linux host or CI to build release tarballs.")
-            return
-        super().release()
-
     def clean(self) -> None:
         """Remove build artifacts."""
         if IS_WINDOWS:
