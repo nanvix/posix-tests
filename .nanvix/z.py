@@ -24,7 +24,6 @@ import os
 import shutil
 import subprocess
 import sys
-import tarfile
 import tempfile
 import urllib.request
 import zipfile
@@ -40,6 +39,11 @@ from nanvix_zutil import (
     run,
 )
 from nanvix_zutil.helpers import InitRdArgs
+from nanvix_zutil.paths import (
+    bin_out,
+    nanvix_root,
+    repo_root,
+)
 
 # ---------------------------------------------------------------------------
 # Platform detection
@@ -165,11 +169,11 @@ class PosixTestsBuild(ZScript):
     # ---- CLI entry point -------------------------------------------------
 
     @classmethod
-    def main(cls, *, repo_root: Path | None = None) -> None:
+    def main(cls) -> None:
         """Pre-parse ``--with-nanvix`` and delegate to ZScript.main()."""
         if _EARLY_LOCAL_NANVIX is not None:
             cls._local_nanvix_path = _EARLY_LOCAL_NANVIX
-        super().main(repo_root=repo_root)
+        super().main()
 
     # ---- Local Nanvix overlay --------------------------------------------
 
@@ -319,7 +323,7 @@ class PosixTestsBuild(ZScript):
 
             from nanvix_zutil import Sysroot
 
-            sysroot_dir = self.nanvix_dir / "sysroot"
+            sysroot_dir = nanvix_root() / "sysroot"
             if sysroot_dir.exists():
                 shutil.rmtree(sysroot_dir)
             sysroot_dir.mkdir(parents=True)
@@ -405,7 +409,31 @@ class PosixTestsBuild(ZScript):
         if IS_WINDOWS or not self._has_native_toolchain():
             self._docker_build()
         else:
-            run(*self._make_args("all"), cwd=self.repo_root, docker=self.docker)
+            run(*self._make_args("all"), cwd=repo_root(), docker=self.docker)
+        self._stage_release_outputs()
+
+    def _stage_release_outputs(self) -> None:
+        """Mirror build/<suite>.elf into bin_out() for the inherited release().
+
+        The inherited ``ZScript.release()`` packages ``release_dir()``
+        into ``dist_dir()``; copying the per-suite ELFs into
+        ``bin_out()`` is what makes them appear in the tarball.  Missing
+        suites are tolerated here (the docker build may produce a subset
+        on some hosts); the tarball will simply omit them and any
+        downstream consumer can fail loudly.
+        """
+        build_dir = repo_root() / "build"
+        if not build_dir.is_dir():
+            return
+        dest = bin_out()
+        dest.mkdir(parents=True, exist_ok=True)
+        copied = 0
+        for suite in ALL_SUITES:
+            src = build_dir / f"{suite}.elf"
+            if src.is_file():
+                shutil.copy2(src, dest / src.name)
+                copied += 1
+        log.info(f"Staged {copied} test ELFs under {dest}")
 
     def test(self) -> None:
         """Run the POSIX test suites.
@@ -417,58 +445,28 @@ class PosixTestsBuild(ZScript):
         self._run_tests_native()
 
     def release(self) -> None:
-        """Package the posix-tests release tarball and verify it."""
+        """Package the posix-tests release tarball.
+
+        Staging happens in ``build()``; this override only short-circuits
+        on Windows (no release packaging supported) and delegates to the
+        inherited ``ZScript.release()`` everywhere else.
+        """
         self._overlay_local_nanvix()
         if IS_WINDOWS:
             log.warning("Release packaging is not supported on Windows.")
             log.warning("Use a Linux host or CI to build release tarballs.")
             return
-
-        build_dir = self.repo_root / "build"
-        dist_dir = self.repo_root / "dist"
-        dist_dir.mkdir(parents=True, exist_ok=True)
-
-        artifact = (
-            f"posix-tests-{self.config.machine}-{self.config.deployment_mode}"
-            f"-{self.config.memory_size}.tar.gz"
-        )
-        tarball = dist_dir / artifact
-
-        log.info("Packaging release...")
-        missing = [s for s in ALL_SUITES if not (build_dir / f"{s}.elf").is_file()]
-        if missing:
-            log.fatal(
-                f"Missing test binaries: {', '.join(missing)}",
-                code=EXIT_MISSING_DEP,
-                hint="Run `./z build` first.",
-            )
-
-        with tarfile.open(tarball, "w:gz") as tf:
-            for suite in ALL_SUITES:
-                src = build_dir / f"{suite}.elf"
-                tf.add(src, arcname=f"{suite}.elf")
-        log.info(f"Package: {tarball}")
-
-        log.info("Verifying package...")
-        with tarfile.open(tarball, "r:gz") as tf:
-            names = set(tf.getnames())
-        for suite in ALL_SUITES:
-            if f"{suite}.elf" not in names:
-                log.fatal(
-                    f"Missing {suite}.elf in package",
-                    code=EXIT_MISSING_DEP,
-                )
-        log.success(f"Package verified: {tarball}")
+        super().release()
 
     def clean(self) -> None:
         """Remove build artifacts."""
         if IS_WINDOWS:
-            build_dir = self.repo_root / "build"
+            build_dir = repo_root() / "build"
             if build_dir.is_dir():
                 shutil.rmtree(build_dir)
                 log.info("Removed build/")
         else:
-            run("make", "-C", "src", "clean", cwd=self.repo_root)
+            run("make", "-C", "src", "clean", cwd=repo_root())
 
     # ---- Docker build ----------------------------------------------------
 
@@ -481,7 +479,7 @@ class PosixTestsBuild(ZScript):
         as Docker build args.
         """
         docker_image = self._resolve_docker_image()
-        build_dir = self.repo_root / "build"
+        build_dir = repo_root() / "build"
         build_dir.mkdir(exist_ok=True)
 
         # Determine the sysroot path relative to the repo root.
@@ -489,7 +487,7 @@ class PosixTestsBuild(ZScript):
         # places them directly in .nanvix/.  Pass the correct path so the
         # Dockerfile can forward it to Make.
         sysroot_rel = ".nanvix/sysroot"
-        if not (self.repo_root / sysroot_rel / "lib" / "libposix.a").is_file():
+        if not (repo_root() / sysroot_rel / "lib" / "libposix.a").is_file():
             sysroot_rel = ".nanvix"
 
         log.info(f"Building via Docker ({docker_image})...")
@@ -510,7 +508,7 @@ class PosixTestsBuild(ZScript):
             "--output",
             "type=local,dest=build",
             ".",
-            cwd=self.repo_root,
+            cwd=repo_root(),
         )
 
         # Count produced binaries.
@@ -524,7 +522,7 @@ class PosixTestsBuild(ZScript):
         Falls back to the cached ``.docker-image`` file if present.
         """
         # Check for cached .docker-image (from 'make init').
-        cached = self.repo_root / ".nanvix" / ".docker-image"
+        cached = repo_root() / ".nanvix" / ".docker-image"
         if cached.is_file():
             tag = cached.read_text().strip()
             if tag:
@@ -560,7 +558,7 @@ class PosixTestsBuild(ZScript):
                 code=EXIT_MISSING_DEP,
                 hint="Run `./z setup` first.",
             )
-        build_dir = self.repo_root / "build"
+        build_dir = repo_root() / "build"
 
         # --- Smoke tests ---
         print("Running smoke tests...")
@@ -599,7 +597,7 @@ class PosixTestsBuild(ZScript):
                 print(f"SKIP {suite}")
                 continue
             print(f"RUN  {suite}...")
-            repo_elf = self.repo_root / binary.name
+            repo_elf = repo_root() / binary.name
             copied_elf = False
             initrd: Path | None = None
             try:
@@ -614,10 +612,13 @@ class PosixTestsBuild(ZScript):
                     # misc-c.elf is a special case that needs the test
                     # environment variable set to pass its internal checks.
                     initrd = make_initrd(
-                        self, binary.name, InitRdArgs(app_env=["NANVIX_TEST=1"])
+                        self,
+                        binary.name,
+                        test=True,
+                        args=InitRdArgs(app_env=["NANVIX_TEST=1"]),
                     )
                 else:
-                    initrd = make_initrd(self, binary.name)
+                    initrd = make_initrd(self, binary.name, test=True)
                 with tempfile.TemporaryDirectory(prefix=f"posix_test_{suite}_") as tmp:
                     tmp_path = Path(tmp)
                     ramfs_dir = tmp_path / "ramfs"
@@ -662,7 +663,7 @@ class PosixTestsBuild(ZScript):
                     log.info(f"$ {' '.join(cmd)}")
                     subprocess.run(
                         cmd,
-                        cwd=self.repo_root,
+                        cwd=repo_root(),
                         stdin=subprocess.DEVNULL,
                         text=True,
                         check=True,
@@ -747,7 +748,7 @@ class PosixTestsBuild(ZScript):
                     log.info(f"$ {' '.join(cmd)}")
                     subprocess.run(
                         cmd,
-                        cwd=self.repo_root,
+                        cwd=repo_root(),
                         stdin=subprocess.DEVNULL,
                         text=True,
                         check=True,
@@ -831,7 +832,7 @@ class PosixTestsBuild(ZScript):
             return
 
         # Download to cache.
-        cache_dir = self.nanvix_dir / "cache"
+        cache_dir = nanvix_root() / "cache"
         cache_dir.mkdir(parents=True, exist_ok=True)
         zip_path = cache_dir / asset_name
 
