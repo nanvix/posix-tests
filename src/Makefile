@@ -51,9 +51,10 @@ export LDFLAGS := -z noexecstack -T $(NANVIX_SYSROOT)/lib/user.ld
 # Libraries.
 export LIBPOSIX := $(NANVIX_SYSROOT)/lib/libposix.a
 export LIBC := $(NANVIX_TOOLCHAIN)/i686-nanvix/lib/libc.a
-export LIBRARIES := -Wl,--start-group $(LIBPOSIX) $(LIBC) -Wl,--end-group
+export LIBNVX_CRT0 := $(NANVIX_SYSROOT)/lib/libnvx_crt0.a
+export LIBRARIES := -Wl,--start-group $(LIBNVX_CRT0) $(LIBPOSIX) $(LIBC) -Wl,--end-group
 export LIBCXX := $(NANVIX_TOOLCHAIN)/i686-nanvix/lib/libstdc++.a
-export LIBRARIES_CXX := -Wl,--start-group $(LIBPOSIX) $(LIBC) $(LIBCXX) -Wl,--end-group
+export LIBRARIES_CXX := -Wl,--start-group $(LIBNVX_CRT0) $(LIBPOSIX) $(LIBC) $(LIBCXX) -Wl,--end-group
 
 # Output directory for compiled binaries.
 export BINARIES_DIR ?= $(CURDIR)/../build
