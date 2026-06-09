@@ -66,6 +66,7 @@ _MAKE_VAR_MEMORY_SIZE = "MEMORY_SIZE"
 ALL_SUITES = [
     "c-bindings",
     "dlfcn-c",
+    "dlfcn-diamond-c",
     "dlfcn-global-c",
     "dlfcn-init-runpath-c",
     "dlfcn-needed-c",
@@ -102,6 +103,7 @@ TESTABLE_SUITES = [
 # Suites that require ramfs-bundled shared libraries and only run in standalone mode.
 STANDALONE_ONLY_SUITES = [
     "dlfcn-c",
+    "dlfcn-diamond-c",
     "dlfcn-init-runpath-c",
     "dlfcn-pie-c",
 ]
@@ -115,6 +117,12 @@ SUITES_REQUIRING_NETWORKING: set[str] = {
 # Maps suite name to a list of (source_filename_in_build_dir, ramfs_target_path).
 SUITE_RAMFS_LIBS: dict[str, list[tuple[str, str]]] = {
     "dlfcn-c": [("libmul.so", "lib/libmul.so")],
+    "dlfcn-diamond-c": [
+        ("libbase.so", "lib/libbase.so"),
+        ("libleft.so", "lib/libleft.so"),
+        ("libright.so", "lib/libright.so"),
+        ("libdiamond.so", "lib/libdiamond.so"),
+    ],
     "dlfcn-init-runpath-c": [
         ("libctor.so", "lib/libctor.so"),
         ("libparent.so", "lib/libparent.so"),
