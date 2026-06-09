@@ -69,6 +69,7 @@ ALL_SUITES = [
     "dlfcn-global-c",
     "dlfcn-needed-c",
     "dlfcn-pie-c",
+    "dlfcn-weak-c",
     "echo-c",
     "echo-cpp",
     "file-c",
@@ -102,6 +103,7 @@ TESTABLE_SUITES = [
 STANDALONE_ONLY_SUITES = [
     "dlfcn-c",
     "dlfcn-pie-c",
+    "dlfcn-weak-c",
 ]
 
 # Suites that require host networking (passed as -allow-host-networking to nanvixd).
@@ -114,6 +116,15 @@ SUITES_REQUIRING_NETWORKING: set[str] = {
 SUITE_RAMFS_LIBS: dict[str, list[tuple[str, str]]] = {
     "dlfcn-c": [("libmul.so", "lib/libmul.so")],
     "dlfcn-pie-c": [("libmul-pie.so", "lib/libmul-pie.so")],
+    "dlfcn-weak-c": [
+        ("libweak-func-resolved.so", "lib/libweak-func-resolved.so"),
+        ("libweak-func-missing.so", "lib/libweak-func-missing.so"),
+        ("libweak-data-resolved.so", "lib/libweak-data-resolved.so"),
+        ("libweak-data-missing.so", "lib/libweak-data-missing.so"),
+        ("libweak-plt-resolved.so", "lib/libweak-plt-resolved.so"),
+        ("libweak-plt-missing.so", "lib/libweak-plt-missing.so"),
+        ("libstrong-missing.so", "lib/libstrong-missing.so"),
+    ],
 }
 
 # Docker image for cross-compilation.
