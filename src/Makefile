@@ -46,14 +46,21 @@ CXXFLAGS += -D__NANVIX_STANDALONE__
 endif
 
 # Linker flags.
-export LDFLAGS := -z noexecstack -T $(NANVIX_SYSROOT)/lib/user.ld
+# Since Nanvix 0.16.19, process startup (`_start` / `__nanvix_main`) lives in
+# libnvx_crt0.a, which drives `__nanvix_libc_start_main` in libposix.a. It must
+# be linked first so its strong symbols win, otherwise the link fails with an
+# undefined reference to `__nanvix_main`. libnvx_crt0.a and libposix.a share
+# some kcall objects (e.g. `_start`, `environ`, the Rust allocator shims), so
+# allow multiple definitions to resolve the overlap.
+export LDFLAGS := -z noexecstack -T $(NANVIX_SYSROOT)/lib/user.ld -Wl,--allow-multiple-definition
 
 # Libraries.
+export LIBNVX_CRT0 := $(NANVIX_SYSROOT)/lib/libnvx_crt0.a
 export LIBPOSIX := $(NANVIX_SYSROOT)/lib/libposix.a
 export LIBC := $(NANVIX_TOOLCHAIN)/i686-nanvix/lib/libc.a
-export LIBRARIES := -Wl,--start-group $(LIBPOSIX) $(LIBC) -Wl,--end-group
+export LIBRARIES := -Wl,--start-group $(LIBNVX_CRT0) $(LIBPOSIX) $(LIBC) -Wl,--end-group
 export LIBCXX := $(NANVIX_TOOLCHAIN)/i686-nanvix/lib/libstdc++.a
-export LIBRARIES_CXX := -Wl,--start-group $(LIBPOSIX) $(LIBC) $(LIBCXX) -Wl,--end-group
+export LIBRARIES_CXX := -Wl,--start-group $(LIBNVX_CRT0) $(LIBPOSIX) $(LIBC) $(LIBCXX) -Wl,--end-group
 
 # Output directory for compiled binaries.
 export BINARIES_DIR ?= $(CURDIR)/../build
