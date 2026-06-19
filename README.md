@@ -15,6 +15,7 @@ as well as simple echo, hello-world, and no-op benchmarks.
 | `echo-c` | Echo stdin to stdout (C) |
 | `echo-cpp` | Echo stdin to stdout (C++) |
 | `file-c` | File system operations (open, read, write, stat, link, mkdir, etc.) |
+| `fork-exec-c` | fork()+execv() reproducer: an exec'd image hangs on its first vfsd file I/O |
 | `hello-c` | Hello world (C) |
 | `hello-cpp` | Hello world (C++) |
 | `memory-c` | malloc/free, aligned\_alloc, realloc, mmap/munmap, heap stress |

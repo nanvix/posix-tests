@@ -72,6 +72,7 @@ ALL_SUITES = [
     "echo-c",
     "echo-cpp",
     "file-c",
+    "fork-exec-c",
     "hello-c",
     "hello-cpp",
     "memory-c",
@@ -102,6 +103,7 @@ TESTABLE_SUITES = [
 STANDALONE_ONLY_SUITES = [
     "dlfcn-c",
     "dlfcn-pie-c",
+    "fork-exec-c",
 ]
 
 # Suites that require host networking (passed as -allow-host-networking to nanvixd).
@@ -114,6 +116,8 @@ SUITES_REQUIRING_NETWORKING: set[str] = {
 SUITE_RAMFS_LIBS: dict[str, list[tuple[str, str]]] = {
     "dlfcn-c": [("libmul.so", "lib/libmul.so")],
     "dlfcn-pie-c": [("libmul-pie.so", "lib/libmul-pie.so")],
+    # The execv() target read by the fork+exec reproducer, placed at "/target".
+    "fork-exec-c": [("fork-exec-target.elf", "target")],
 }
 
 # Docker image for cross-compilation.
