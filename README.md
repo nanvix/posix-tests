@@ -29,6 +29,24 @@ as well as simple echo, hello-world, and no-op benchmarks.
 | `socket-fork-c` | fork() reproducer: a child close()ing an inherited socket destroys the parent's socket |
 | `thread-c` | Threading, mutexes, condition variables, rwlocks, TLS, TDA |
 
+### Reproducers
+
+Some suites are *reproducers* tied to specific Nanvix issues rather than
+general conformance tests:
+
+- `fork-pid-c` and `fork-pthread-c` assert POSIX `fork()` invariants (a child
+  sees its own pid; a child can re-initialize inherited pthread primitives).
+  The pinned Nanvix version satisfies these, so they run as **regression
+  guards** in the standalone integration run.
+- `fork-exec-c`, `pipe-dup2-c`, and `socket-fork-c` reproduce **currently-open**
+  issues — they fail or hang by design (an exec'd image hanging on its first
+  vfsd I/O; `dup2()` of a pipe onto a standard stream being refused; a socket
+  being shared rather than reference-counted across `fork()`). To keep CI green
+  they are **built and smoke-tested but excluded from the gating integration
+  run** (`BUILD_ONLY_REPRODUCERS` in `.nanvix/z.py`). Each program's header
+  comment documents the expected (buggy) output. To observe a bug, temporarily
+  add the suite to `STANDALONE_ONLY_SUITES` and run `./z test`.
+
 ## Prerequisites
 
 - [Docker](https://docs.docker.com/engine/install/)
