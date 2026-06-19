@@ -26,6 +26,7 @@ as well as simple echo, hello-world, and no-op benchmarks.
 | `noop-c` | No-op program (C) |
 | `noop-cpp` | No-op program (C++) |
 | `pipe-dup2-c` | dup2() reproducer: dup2(pipe, STDOUT) does not redirect the standard stream |
+| `socket-fork-c` | fork() reproducer: a child close()ing an inherited socket destroys the parent's socket |
 | `thread-c` | Threading, mutexes, condition variables, rwlocks, TLS, TDA |
 
 ## Prerequisites

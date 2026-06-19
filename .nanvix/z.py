@@ -83,6 +83,7 @@ ALL_SUITES = [
     "noop-c",
     "noop-cpp",
     "pipe-dup2-c",
+    "socket-fork-c",
     "thread-c",
 ]
 
@@ -113,11 +114,13 @@ STANDALONE_ONLY_SUITES = [
     "fork-pid-c",
     "fork-pthread-c",
     "pipe-dup2-c",
+    "socket-fork-c",
 ]
 
 # Suites that require host networking (passed as -allow-host-networking to nanvixd).
 SUITES_REQUIRING_NETWORKING: set[str] = {
     "network-c",
+    "socket-fork-c",
 }
 
 # Shared libraries that must be bundled into the ramfs for specific suites.
