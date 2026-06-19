@@ -16,6 +16,8 @@ as well as simple echo, hello-world, and no-op benchmarks.
 | `echo-cpp` | Echo stdin to stdout (C++) |
 | `file-c` | File system operations (open, read, write, stat, link, mkdir, etc.) |
 | `fork-exec-c` | fork()+execv() reproducer: an exec'd image hangs on its first vfsd file I/O |
+| `fork-pid-c` | fork() test: asserts the child sees its own (new) pid from getpid()/getppid() |
+| `fork-pthread-c` | fork() test: asserts the child can re-init an inherited pthread mutex/cond |
 | `hello-c` | Hello world (C) |
 | `hello-cpp` | Hello world (C++) |
 | `memory-c` | malloc/free, aligned\_alloc, realloc, mmap/munmap, heap stress |
@@ -23,6 +25,7 @@ as well as simple echo, hello-world, and no-op benchmarks.
 | `network-c` | IPv4 (INET) and Unix domain sockets |
 | `noop-c` | No-op program (C) |
 | `noop-cpp` | No-op program (C++) |
+| `pipe-dup2-c` | dup2() reproducer: dup2(pipe, STDOUT) does not redirect the standard stream |
 | `thread-c` | Threading, mutexes, condition variables, rwlocks, TLS, TDA |
 
 ## Prerequisites

@@ -73,6 +73,8 @@ ALL_SUITES = [
     "echo-cpp",
     "file-c",
     "fork-exec-c",
+    "fork-pid-c",
+    "fork-pthread-c",
     "hello-c",
     "hello-cpp",
     "memory-c",
@@ -80,6 +82,7 @@ ALL_SUITES = [
     "network-c",
     "noop-c",
     "noop-cpp",
+    "pipe-dup2-c",
     "thread-c",
 ]
 
@@ -99,11 +102,17 @@ TESTABLE_SUITES = [
     "thread-c",
 ]
 
-# Suites that require ramfs-bundled shared libraries and only run in standalone mode.
+# Suites that require ramfs-bundled shared libraries and/or only make sense in
+# standalone mode. The fork/pipe reproducers below need fork()/exec() and a
+# deterministic single-init environment, so they are run only in standalone
+# mode (alongside fork-exec-c).
 STANDALONE_ONLY_SUITES = [
     "dlfcn-c",
     "dlfcn-pie-c",
     "fork-exec-c",
+    "fork-pid-c",
+    "fork-pthread-c",
+    "pipe-dup2-c",
 ]
 
 # Suites that require host networking (passed as -allow-host-networking to nanvixd).
