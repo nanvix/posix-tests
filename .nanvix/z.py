@@ -72,6 +72,9 @@ ALL_SUITES = [
     "echo-c",
     "echo-cpp",
     "file-c",
+    "fork-exec-c",
+    "fork-pid-c",
+    "fork-pthread-c",
     "hello-c",
     "hello-cpp",
     "memory-c",
@@ -79,6 +82,8 @@ ALL_SUITES = [
     "network-c",
     "noop-c",
     "noop-cpp",
+    "pipe-dup2-c",
+    "socket-fork-c",
     "thread-c",
 ]
 
@@ -98,15 +103,40 @@ TESTABLE_SUITES = [
     "thread-c",
 ]
 
-# Suites that require ramfs-bundled shared libraries and only run in standalone mode.
+# Reproducers for currently-OPEN Nanvix issues. These fail or hang BY DESIGN, so
+# they are deliberately kept out of the gating integration run. They are still
+# built (they appear in ALL_SUITES and src/Makefile) and smoke-tested (the build
+# verifies they compile under -Wall -Wextra -Werror and that the binary exists).
+# To observe a bug, run a reproducer manually by temporarily adding it to
+# STANDALONE_ONLY_SUITES below (see README "Reproducers").
+#   fork-exec-c   : vfsd filesystem I/O hangs after fork()+execv()
+#   pipe-dup2-c   : dup2() of a pipe onto a standard stream (0/1/2) is refused
+#   socket-fork-c : a socket is shared (not reference-counted) across fork()
+BUILD_ONLY_REPRODUCERS = [
+    "fork-exec-c",
+    "pipe-dup2-c",
+    "socket-fork-c",
+]
+
+# Build-only reproducers must still be real, built suites.
+assert set(BUILD_ONLY_REPRODUCERS).issubset(ALL_SUITES)
+
+# Suites that require ramfs-bundled shared libraries and/or only make sense in
+# standalone mode (e.g. fork-based suites). fork-pid-c and fork-pthread-c assert
+# POSIX fork() invariants (own pid in the child; re-init of inherited pthread
+# primitives) that the pinned Nanvix version satisfies, so they run here as
+# regression guards.
 STANDALONE_ONLY_SUITES = [
     "dlfcn-c",
     "dlfcn-pie-c",
+    "fork-pid-c",
+    "fork-pthread-c",
 ]
 
 # Suites that require host networking (passed as -allow-host-networking to nanvixd).
 SUITES_REQUIRING_NETWORKING: set[str] = {
     "network-c",
+    "socket-fork-c",
 }
 
 # Shared libraries that must be bundled into the ramfs for specific suites.
@@ -114,6 +144,8 @@ SUITES_REQUIRING_NETWORKING: set[str] = {
 SUITE_RAMFS_LIBS: dict[str, list[tuple[str, str]]] = {
     "dlfcn-c": [("libmul.so", "lib/libmul.so")],
     "dlfcn-pie-c": [("libmul-pie.so", "lib/libmul-pie.so")],
+    # The execv() target read by the fork+exec reproducer, placed at "/target".
+    "fork-exec-c": [("fork-exec-target.elf", "target")],
 }
 
 # Docker image for cross-compilation.

@@ -15,6 +15,9 @@ as well as simple echo, hello-world, and no-op benchmarks.
 | `echo-c` | Echo stdin to stdout (C) |
 | `echo-cpp` | Echo stdin to stdout (C++) |
 | `file-c` | File system operations (open, read, write, stat, link, mkdir, etc.) |
+| `fork-exec-c` | fork()+execv() reproducer: an exec'd image hangs on its first vfsd file I/O |
+| `fork-pid-c` | fork() test: asserts the child sees its own (new) pid from getpid()/getppid() |
+| `fork-pthread-c` | fork() test: asserts the child can re-init an inherited pthread mutex/cond |
 | `hello-c` | Hello world (C) |
 | `hello-cpp` | Hello world (C++) |
 | `memory-c` | malloc/free, aligned\_alloc, realloc, mmap/munmap, heap stress |
@@ -22,7 +25,27 @@ as well as simple echo, hello-world, and no-op benchmarks.
 | `network-c` | IPv4 (INET) and Unix domain sockets |
 | `noop-c` | No-op program (C) |
 | `noop-cpp` | No-op program (C++) |
+| `pipe-dup2-c` | dup2() reproducer: dup2(pipe, STDOUT) does not redirect the standard stream |
+| `socket-fork-c` | fork() reproducer: a child close()ing an inherited socket destroys the parent's socket |
 | `thread-c` | Threading, mutexes, condition variables, rwlocks, TLS, TDA |
+
+### Reproducers
+
+Some suites are *reproducers* tied to specific Nanvix issues rather than
+general conformance tests:
+
+- `fork-pid-c` and `fork-pthread-c` assert POSIX `fork()` invariants (a child
+  sees its own pid; a child can re-initialize inherited pthread primitives).
+  The pinned Nanvix version satisfies these, so they run as **regression
+  guards** in the standalone integration run.
+- `fork-exec-c`, `pipe-dup2-c`, and `socket-fork-c` reproduce **currently-open**
+  issues — they fail or hang by design (an exec'd image hanging on its first
+  vfsd I/O; `dup2()` of a pipe onto a standard stream being refused; a socket
+  being shared rather than reference-counted across `fork()`). To keep CI green
+  they are **built and smoke-tested but excluded from the gating integration
+  run** (`BUILD_ONLY_REPRODUCERS` in `.nanvix/z.py`). Each program's header
+  comment documents the expected (buggy) output. To observe a bug, temporarily
+  add the suite to `STANDALONE_ONLY_SUITES` and run `./z test`.
 
 ## Prerequisites
 
