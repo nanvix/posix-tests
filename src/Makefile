@@ -72,7 +72,7 @@ export LIBRARIES_DIR ?= $(BINARIES_DIR)
 # Test Suites
 #===============================================================================
 
-SUITES := c-bindings dlfcn-c dlfcn-global-c dlfcn-needed-c dlfcn-pie-c echo-c echo-cpp file-c hello-c hello-cpp memory-c misc-c network-c noop-c noop-cpp thread-c
+SUITES := c-bindings dlfcn-c dlfcn-global-c dlfcn-needed-c dlfcn-pie-c dlfcn-weak-c echo-c echo-cpp file-c hello-c hello-cpp memory-c misc-c network-c noop-c noop-cpp thread-c
 
 #===============================================================================
 # Build Rules
@@ -98,7 +98,7 @@ $(BINARIES_DIR):
 #===============================================================================
 
 # Test suites that can run via plain nanvixd invocation.
-# dlfcn-c and dlfcn-pie-c need shared libraries inside the VM filesystem.
+# dlfcn-c, dlfcn-pie-c, and dlfcn-weak-c need shared libraries inside the VM filesystem.
 # file-c needs VFS access (tests open/read/write on files).
 # network-c needs network infrastructure (sockets).
 # misc-c needs environment variable setup (NANVIX_TEST).
