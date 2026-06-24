@@ -67,6 +67,7 @@ ALL_SUITES = [
     "c-bindings",
     "dlfcn-c",
     "dlfcn-global-c",
+    "dlfcn-init-runpath-c",
     "dlfcn-needed-c",
     "dlfcn-pie-c",
     "echo-c",
@@ -101,6 +102,7 @@ TESTABLE_SUITES = [
 # Suites that require ramfs-bundled shared libraries and only run in standalone mode.
 STANDALONE_ONLY_SUITES = [
     "dlfcn-c",
+    "dlfcn-init-runpath-c",
     "dlfcn-pie-c",
 ]
 
@@ -113,6 +115,11 @@ SUITES_REQUIRING_NETWORKING: set[str] = {
 # Maps suite name to a list of (source_filename_in_build_dir, ramfs_target_path).
 SUITE_RAMFS_LIBS: dict[str, list[tuple[str, str]]] = {
     "dlfcn-c": [("libmul.so", "lib/libmul.so")],
+    "dlfcn-init-runpath-c": [
+        ("libctor.so", "lib/libctor.so"),
+        ("libparent.so", "lib/libparent.so"),
+        ("libchild.so", "lib/subdir/libchild.so"),
+    ],
     "dlfcn-pie-c": [("libmul-pie.so", "lib/libmul-pie.so")],
 }
 
