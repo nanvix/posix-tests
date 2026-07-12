@@ -8,17 +8,22 @@
 # Nanvix GitHub repository.
 NANVIX_REPO ?= nanvix/nanvix
 
-# Nanvix release directory (populated by 'make init').
+# Nanvix runtime directory (populated by 'make init').
 NANVIX_DIR ?= .nanvix
+NANVIX_RUNTIME ?= $(NANVIX_DIR)/sysroot
+NANVIX_VERSION ?= 0.20.0
+
+# Content-addressed Nanvix C/Clang SDK used for every build.
+NANVIX_SDK_IMAGE := ghcr.io/nanvix/nanvix-sdk-c-clang@sha256:f61737cb0780e6a2058c6d0bdf8ae5562db18de437173b2bcbbe6973abd3689f
 
 # Build/runtime knobs (must match Dockerfile defaults). Used both to select the
 # correct release asset in 'make init' and to parameterize the Docker build.
 PLATFORM     ?= microvm
-PROCESS_MODE ?= multi-process
-MEMORY_SIZE  ?= 128mb
+PROCESS_MODE ?= single-process
+MEMORY_SIZE  ?= 256mb
 
 # Test suites to build.
-SUITES := c-bindings dlfcn-c dlfcn-pie-c echo-c echo-cpp file-c hello-c hello-cpp memory-c misc-c network-c noop-c noop-cpp thread-c
+SUITES := c-bindings echo-c echo-cpp file-c hello-c hello-cpp memory-c misc-c network-c noop-c noop-cpp thread-c
 
 # ELF binaries produced by each suite.
 BINARIES := $(addsuffix .elf,$(SUITES))
@@ -30,9 +35,9 @@ BINARIES := $(addsuffix .elf,$(SUITES))
 all: $(addprefix build/,$(BINARIES))
 
 # Build all test suite ELFs inside Docker and export to build/.
-build/%.elf: src/ Makefile Dockerfile $(NANVIX_DIR)/lib/libposix.a
+build/%.elf: src/ Makefile Dockerfile
 	DOCKER_BUILDKIT=1 docker build \
-		--build-arg BASE_IMAGE=$$(cat $(NANVIX_DIR)/.docker-image) \
+		--build-arg BASE_IMAGE=$(NANVIX_SDK_IMAGE) \
 		--build-arg PLATFORM=$(PLATFORM) \
 		--build-arg PROCESS_MODE=$(PROCESS_MODE) \
 		--build-arg MEMORY_SIZE=$(MEMORY_SIZE) \
@@ -40,8 +45,8 @@ build/%.elf: src/ Makefile Dockerfile $(NANVIX_DIR)/lib/libposix.a
 	@touch $(addprefix build/,$(BINARIES))
 
 # Run a specific test suite on Nanvix.
-run: build/$(SUITE).elf
-	$(NANVIX_DIR)/bin/nanvixd.elf -bin-dir $(NANVIX_DIR)/bin -console-file /dev/stdout -- ./build/$(SUITE).elf
+run: $(NANVIX_RUNTIME)/bin/nanvixd.elf build/$(SUITE).elf
+	$(NANVIX_RUNTIME)/bin/nanvixd.elf -bin-dir $(NANVIX_RUNTIME)/bin -console-file /dev/stdout -- ./build/$(SUITE).elf
 
 clean:
 	rm -rf build
@@ -54,14 +59,14 @@ compile:
 	$(MAKE) -C src all BINARIES_DIR=/workspace/build
 
 #===============================================================================
-# Init — download the latest Nanvix release and resolve the Docker image tag
+# Init — download the runtime matching the pinned SDK
 #===============================================================================
 
-init: $(NANVIX_DIR)/lib/libposix.a
+init: $(NANVIX_RUNTIME)/bin/nanvixd.elf
 
-$(NANVIX_DIR)/lib/libposix.a:
-	@echo "Downloading the latest Nanvix release..."
-	@RELEASE_INFO=$$(gh release view --repo "$(NANVIX_REPO)" --json tagName,assets); \
+$(NANVIX_RUNTIME)/bin/nanvixd.elf:
+	@echo "Downloading Nanvix runtime v$(NANVIX_VERSION)..."
+	@RELEASE_INFO=$$(gh release view "v$(NANVIX_VERSION)" --repo "$(NANVIX_REPO)" --json tagName,assets); \
 	TAG_NAME=$$(echo "$$RELEASE_INFO" | jq -r '.tagName'); \
 	ASSET_PREFIX="nanvix-x86-$(PLATFORM)-$(PROCESS_MODE)-release-$(MEMORY_SIZE)-"; \
 	ASSET_NAME=$$(echo "$$RELEASE_INFO" | jq -r --arg prefix "$$ASSET_PREFIX" \
@@ -77,22 +82,20 @@ $(NANVIX_DIR)/lib/libposix.a:
 	fi; \
 	echo "  Release: $$TAG_NAME"; \
 	echo "  Asset: $$ASSET_NAME"; \
-	DOCKER_IMAGE="ghcr.io/nanvix/toolchain-gcc:sha-34a3641"; \
-	echo "  Docker image: $$DOCKER_IMAGE"; \
-	TMPDIR=$$(mktemp -d); \
+	echo "  SDK image: $(NANVIX_SDK_IMAGE)"; \
+	CACHE_DIR="$(NANVIX_DIR)/cache/runtime-init"; \
+	rm -rf "$$CACHE_DIR"; \
+	mkdir -p "$$CACHE_DIR" "$(NANVIX_RUNTIME)"; \
 	gh release download "$$TAG_NAME" --repo "$(NANVIX_REPO)" \
 		--pattern "$$ASSET_NAME" \
-		--dir "$$TMPDIR"; \
-	mkdir -p $(NANVIX_DIR); \
-	tar xjf "$$TMPDIR/$$ASSET_NAME" -C $(NANVIX_DIR) --strip-components=1; \
-	rm -rf "$$TMPDIR"; \
-	echo "$$DOCKER_IMAGE" > $(NANVIX_DIR)/.docker-image; \
+		--dir "$$CACHE_DIR"; \
+	tar xjf "$$CACHE_DIR/$$ASSET_NAME" -C "$(NANVIX_RUNTIME)" --strip-components=1; \
+	rm -rf "$$CACHE_DIR"; \
 	echo ""; \
-	echo "Done. Nanvix release extracted to $(NANVIX_DIR)/."
+	echo "Done. Nanvix runtime extracted to $(NANVIX_RUNTIME)/."
 
 distclean: clean
 	rm -rf $(NANVIX_DIR)/sysroot $(NANVIX_DIR)/cache $(NANVIX_DIR)/buildroot
-	rm -rf $(NANVIX_DIR)/venv $(NANVIX_DIR)/env.json $(NANVIX_DIR)/.docker-image
-	rm -rf $(NANVIX_DIR)/lib $(NANVIX_DIR)/bin $(NANVIX_DIR)/include
+	rm -rf $(NANVIX_DIR)/venv $(NANVIX_DIR)/env.json
 
 .PHONY: all run compile clean init distclean

@@ -5,25 +5,24 @@
 # Build Configuration
 #===============================================================================
 
-# Nanvix sysroot (set by the host Makefile or z.py).
-NANVIX_SYSROOT ?= ../.nanvix
-
-# Toolchain directory (set by the Docker image).
+# Nanvix SDK directory (set by the Docker image).
 NANVIX_TOOLCHAIN ?= /opt/nanvix
 
 # Platform and deployment mode (set by CI or z.py).
 PLATFORM ?= microvm
-PROCESS_MODE ?= multi-process
-MEMORY_SIZE ?= 128mb
+PROCESS_MODE ?= single-process
+MEMORY_SIZE ?= 256mb
 
-# Cross-compiler.
-export CC := $(NANVIX_TOOLCHAIN)/bin/i686-nanvix-gcc
-export CXX := $(NANVIX_TOOLCHAIN)/bin/i686-nanvix-g++
-export READELF := $(NANVIX_TOOLCHAIN)/bin/i686-nanvix-readelf
+# Downloaded runtime artifacts are used only by the direct Make test target.
+NANVIX_RUNTIME ?= ../.nanvix/sysroot
+
+# SDK tools.
+export CC := $(NANVIX_TOOLCHAIN)/bin/clang
+export CXX := $(NANVIX_TOOLCHAIN)/bin/clang++
+export READELF := $(NANVIX_TOOLCHAIN)/bin/llvm-readelf
 
 # Compiler flags.
 export CFLAGS := -std=c17
-CFLAGS += -m32 -march=pentiumpro -Wa,-march=pentiumpro
 CFLAGS += -Wall -Wextra -Werror
 CFLAGS += -O2
 CFLAGS += -D__NANVIX_SYSNAME__=\"nanvix\"
@@ -35,7 +34,6 @@ endif
 
 # C++ compiler flags.
 export CXXFLAGS := -std=c++17
-CXXFLAGS += -m32 -march=pentiumpro -Wa,-march=pentiumpro
 CXXFLAGS += -Wall -Wextra -Werror
 CXXFLAGS += -O2
 CXXFLAGS += -D__NANVIX_SYSNAME__=\"nanvix\"
@@ -45,22 +43,9 @@ ifeq ($(PROCESS_MODE),standalone)
 CXXFLAGS += -D__NANVIX_STANDALONE__
 endif
 
-# Linker flags.
-# Since Nanvix 0.16.19, process startup (`_start` / `__nanvix_main`) lives in
-# libnvx_crt0.a, which drives `__nanvix_libc_start_main` in libposix.a. It must
-# be linked first so its strong symbols win, otherwise the link fails with an
-# undefined reference to `__nanvix_main`. libnvx_crt0.a and libposix.a share
-# some kcall objects (e.g. `_start`, `environ`, the Rust allocator shims), so
-# allow multiple definitions to resolve the overlap.
-export LDFLAGS := -z noexecstack -T $(NANVIX_SYSROOT)/lib/user.ld -Wl,--allow-multiple-definition
-
-# Libraries.
-export LIBNVX_CRT0 := $(NANVIX_SYSROOT)/lib/libnvx_crt0.a
-export LIBPOSIX := $(NANVIX_SYSROOT)/lib/libposix.a
-export LIBC := $(NANVIX_TOOLCHAIN)/i686-nanvix/lib/libc.a
-export LIBRARIES := -Wl,--start-group $(LIBNVX_CRT0) $(LIBPOSIX) $(LIBC) -Wl,--end-group
-export LIBCXX := $(NANVIX_TOOLCHAIN)/i686-nanvix/lib/libstdc++.a
-export LIBRARIES_CXX := -Wl,--start-group $(LIBNVX_CRT0) $(LIBPOSIX) $(LIBC) $(LIBCXX) -Wl,--end-group
+# The compiler drivers select the SDK startup object, linker script, libc,
+# compiler runtime, and (for C++) libc++ runtimes.
+export LDFLAGS := -Wl,-z,noexecstack
 
 # Output directory for compiled binaries.
 export BINARIES_DIR ?= $(CURDIR)/../build
@@ -72,20 +57,31 @@ export LIBRARIES_DIR ?= $(BINARIES_DIR)
 # Test Suites
 #===============================================================================
 
-SUITES := c-bindings dlfcn-c dlfcn-global-c dlfcn-needed-c dlfcn-pie-c echo-c echo-cpp file-c hello-c hello-cpp memory-c misc-c network-c noop-c noop-cpp thread-c
+BASE_SUITES := c-bindings echo-c echo-cpp file-c hello-c hello-cpp memory-c misc-c network-c noop-c noop-cpp thread-c
+DYNAMIC_LOADER_SUITES := dlfcn-c dlfcn-global-c dlfcn-needed-c dlfcn-pie-c
+
+# The pinned SDK advertises features.dynamic_loader=false.
+DYNAMIC_LOADER ?= false
+SUITES := $(BASE_SUITES)
+ifeq ($(DYNAMIC_LOADER),true)
+SUITES += $(DYNAMIC_LOADER_SUITES)
+endif
 
 #===============================================================================
 # Build Rules
 #===============================================================================
 
 all: $(BINARIES_DIR)
+	@test -f "$(NANVIX_TOOLCHAIN)/nanvix-sdk.json" || { echo "Nanvix SDK not found at $(NANVIX_TOOLCHAIN)"; exit 1; }
+	@test -x "$(CC)" || { echo "Nanvix SDK Clang not found at $(CC)"; exit 1; }
+	@test -x "$(CXX)" || { echo "Nanvix SDK Clang++ not found at $(CXX)"; exit 1; }
 	@for suite in $(SUITES); do \
 		echo "Building $$suite..."; \
 		$(MAKE) -C $$suite all || exit 1; \
 	done
 
 clean:
-	@for suite in $(SUITES); do \
+	@for suite in $(BASE_SUITES) $(DYNAMIC_LOADER_SUITES); do \
 		$(MAKE) -C $$suite clean || true; \
 	done
 	rm -rf $(DIST_DIR)
@@ -98,7 +94,6 @@ $(BINARIES_DIR):
 #===============================================================================
 
 # Test suites that can run via plain nanvixd invocation.
-# dlfcn-c and dlfcn-pie-c need shared libraries inside the VM filesystem.
 # file-c needs VFS access (tests open/read/write on files).
 # network-c needs network infrastructure (sockets).
 # misc-c needs environment variable setup (NANVIX_TEST).
@@ -129,7 +124,7 @@ else
 			continue; \
 		fi; \
 		echo "RUN  $$suite..."; \
-		$(NANVIX_SYSROOT)/bin/nanvixd.elf -console-file /dev/stdout -- "$$binary" && echo "OK   $$suite" || { echo "FAIL $$suite"; exit 1; }; \
+		$(NANVIX_RUNTIME)/bin/nanvixd.elf -console-file /dev/stdout -- "$$binary" && echo "OK   $$suite" || { echo "FAIL $$suite"; exit 1; }; \
 	done
 endif
 

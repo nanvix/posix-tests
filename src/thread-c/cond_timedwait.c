@@ -27,11 +27,8 @@ static const size_t EXPECTED_EXIT_STATUS = 0xdeadbeef;
 // Global condition variable used for synchronization.
 static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 
-// Global mutex used to synchronize access to the `initialized` variable.
+// Global mutex used by the timed wait.
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-
-// Global variable used to signal that the worker thread is initialized.
-static volatile int initialized = 0;
 
 //==================================================================================================
 // Standalone Functions

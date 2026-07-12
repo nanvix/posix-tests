@@ -4,5 +4,4 @@ dist/
 .nanvix/venv/
 .nanvix/cache/
 .nanvix/env.json
-.nanvix/.docker-image
 .git/
