@@ -15,7 +15,7 @@ OBJECTS := $(SOURCES:.c=.o)
 BINARY  := $(PROGRAM_NAME).elf
 
 all: $(OBJECTS) libs-all
-	$(CC) $(LDFLAGS) -pie -rdynamic -Wl,--no-dynamic-linker $(OBJECTS) $(LIBRARIES) -o $(BINARIES_DIR)/$(BINARY)
+	$(CC) $(LDFLAGS) -pie -rdynamic -Wl,--no-dynamic-linker $(OBJECTS) -o $(BINARIES_DIR)/$(BINARY)
 
 clean: libs-clean
 	rm -f $(OBJECTS)

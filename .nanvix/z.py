@@ -43,6 +43,7 @@ from nanvix_zutil.paths import (
     bin_out,
     nanvix_root,
     repo_root,
+    test_out,
 )
 
 # ---------------------------------------------------------------------------
@@ -56,19 +57,16 @@ IS_WINDOWS = sys.platform == "win32"
 # ---------------------------------------------------------------------------
 
 # Makefile variable names (build-system-specific).
-_MAKE_VAR_SYSROOT = "NANVIX_SYSROOT"
 _MAKE_VAR_TOOLCHAIN = "NANVIX_TOOLCHAIN"
 _MAKE_VAR_PLATFORM = "PLATFORM"
 _MAKE_VAR_PROCESS_MODE = "PROCESS_MODE"
 _MAKE_VAR_MEMORY_SIZE = "MEMORY_SIZE"
 
-# All test suites built by the Makefile.
-ALL_SUITES = [
+# The pinned SDK manifest advertises features.dynamic_loader=false.
+SDK_DYNAMIC_LOADER = False
+
+BASE_SUITES = [
     "c-bindings",
-    "dlfcn-c",
-    "dlfcn-global-c",
-    "dlfcn-needed-c",
-    "dlfcn-pie-c",
     "echo-c",
     "echo-cpp",
     "file-c",
@@ -81,28 +79,35 @@ ALL_SUITES = [
     "noop-cpp",
     "thread-c",
 ]
+
+DYNAMIC_LOADER_SUITES = [
+    "dlfcn-c",
+    "dlfcn-global-c",
+    "dlfcn-needed-c",
+    "dlfcn-pie-c",
+]
+
+ALL_SUITES = BASE_SUITES + (DYNAMIC_LOADER_SUITES if SDK_DYNAMIC_LOADER else [])
 
 # Suites that can run via plain nanvixd invocation (no special infra).
 TESTABLE_SUITES = [
     "c-bindings",
     "echo-c",
     "echo-cpp",
-    "file-c",
     "hello-c",
     "hello-cpp",
     "memory-c",
     "misc-c",
-    "network-c",
     "noop-c",
     "noop-cpp",
     "thread-c",
 ]
 
+# These suites need services that are only present in standalone runtimes.
+STANDALONE_INFRASTRUCTURE_SUITES = ["file-c", "network-c"]
+
 # Suites that require ramfs-bundled shared libraries and only run in standalone mode.
-STANDALONE_ONLY_SUITES = [
-    "dlfcn-c",
-    "dlfcn-pie-c",
-]
+STANDALONE_ONLY_SUITES = ["dlfcn-c", "dlfcn-pie-c"] if SDK_DYNAMIC_LOADER else []
 
 # Suites that require host networking (passed as -allow-host-networking to nanvixd).
 SUITES_REQUIRING_NETWORKING: set[str] = {
@@ -117,7 +122,10 @@ SUITE_RAMFS_LIBS: dict[str, list[tuple[str, str]]] = {
 }
 
 # Docker image for cross-compilation.
-DOCKER_IMAGE = "ghcr.io/nanvix/toolchain-gcc:sha-34a3641"
+DOCKER_IMAGE = (
+    "ghcr.io/nanvix/nanvix-sdk-c-clang"
+    "@sha256:f61737cb0780e6a2058c6d0bdf8ae5562db18de437173b2bcbbe6973abd3689f"
+)
 
 # Windows host-native binaries needed for test execution.
 WINDOWS_HOST_BINARIES = [
@@ -150,18 +158,16 @@ class PosixTestsBuild(ZScript):
     _local_nanvix_path: str | None = None
 
     SYSROOT_REQUIRED_FILES: tuple[str, ...] = (
-        "lib/libposix.a",
-        "lib/user.ld",
         "bin/nanvixd.elf",
         "bin/kernel.elf",
         "bin/mkramfs.elf",
     )
 
-    # On Windows, nanvixd.exe and kernel.elf are downloaded separately
-    # by _download_windows_binaries(), so don't require them here.
+    # The base setup flow overlays host-native Windows tools before verification.
     SYSROOT_REQUIRED_FILES_WINDOWS: tuple[str, ...] = (
-        "lib/libposix.a",
-        "lib/user.ld",
+        "bin/nanvixd.exe",
+        "bin/kernel.elf",
+        "bin/mkramfs.exe",
     )
 
     SYSROOT_MULTI_PROCESS_FILES: tuple[str, ...] = ()
@@ -178,13 +184,14 @@ class PosixTestsBuild(ZScript):
     # ---- Local Nanvix overlay --------------------------------------------
 
     def _overlay_local_nanvix(self) -> None:
-        """Copy local Nanvix binaries and libraries into the sysroot.
+        """Copy local Nanvix runtime binaries into the sysroot.
 
         When ``--with-nanvix PATH`` is supplied (or was previously
-        persisted in config), this method copies the runtime binaries
-        (nanvixd, kernel, …) and libraries (libposix.a, user.ld)
-        from the local Nanvix build directory into the configured sysroot
-        so that subsequent build and test steps use the local versions.
+        persisted in config), this method copies runtime binaries
+        (nanvixd, kernel, …) from the local Nanvix build directory into
+        the configured runtime sysroot.
+        Build-time headers, libraries, startup objects, and linker scripts
+        always come from the pinned SDK image.
 
         The path is persisted in ``.nanvix/env.json`` on first use so
         that later commands pick it up automatically.
@@ -249,55 +256,21 @@ class PosixTestsBuild(ZScript):
                 shutil.copy2(src, bin_dst / name)
                 log.info(f"  Copied {name}")
 
-        # -- Libraries -----------------------------------------------------
-        lib_dst = sysroot_path / "lib"
-        lib_dst.mkdir(parents=True, exist_ok=True)
-        lib_src = nanvix_dir / "lib"
-
-        if lib_src.is_dir():
-            for lib_name in ["libposix.a"]:
-                src = lib_src / lib_name
-                if src.is_file():
-                    shutil.copy2(src, lib_dst / lib_name)
-                    log.info(f"  Copied {lib_name}")
-
-        # -- Linker script (user.ld) — check multiple locations ------------
-        user_ld_candidates = [
-            nanvix_dir / "lib" / "user.ld",
-            nanvix_dir / "sysroot-release" / "lib" / "user.ld",
-            nanvix_dir / "build" / "user" / "linker" / "x86" / "user.ld",
-        ]
-        for candidate in user_ld_candidates:
-            if candidate.is_file():
-                shutil.copy2(candidate, lib_dst / "user.ld")
-                log.info(f"  Copied user.ld from {candidate}")
-                break
-
     # ---- Helpers ---------------------------------------------------------
 
     def _make_args(self, *targets: str) -> list[str]:
         """Build the common make argument list."""
-        sysroot = self.config.get(CFG_SYSROOT, "")
-        if not sysroot:
-            log.fatal(
-                f"{CFG_SYSROOT} is not set.",
-                code=EXIT_MISSING_DEP,
-                hint="Run `./z setup` first to download the sysroot.",
-            )
         toolchain_p = str(TOOLCHAIN_CONTAINER_PATH)
-        sysroot_p = (
-            self.docker.translate_path(Path(sysroot)) if self.docker else Path(sysroot)
-        )
 
         args = [
             "make",
             "-C",
             "src",
-            f"{_MAKE_VAR_SYSROOT}={sysroot_p}",
             f"{_MAKE_VAR_TOOLCHAIN}={toolchain_p}",
             f"{_MAKE_VAR_PLATFORM}={self.config.machine}",
             f"{_MAKE_VAR_PROCESS_MODE}={self.config.deployment_mode}",
             f"{_MAKE_VAR_MEMORY_SIZE}={self.config.memory_size}",
+            f"DYNAMIC_LOADER={'true' if SDK_DYNAMIC_LOADER else 'false'}",
         ]
 
         args.extend(targets)
@@ -306,13 +279,15 @@ class PosixTestsBuild(ZScript):
     def _has_native_toolchain(self) -> bool:
         """Check if the native cross-compilation toolchain is available."""
         toolchain = str(TOOLCHAIN_CONTAINER_PATH)
-        cc = Path(toolchain) / "bin" / "i686-nanvix-gcc"
-        return cc.is_file()
+        sdk_manifest = Path(toolchain) / "nanvix-sdk.json"
+        cc = Path(toolchain) / "bin" / "clang"
+        cxx = Path(toolchain) / "bin" / "clang++"
+        return sdk_manifest.is_file() and cc.is_file() and cxx.is_file()
 
     # ---- Lifecycle hooks -------------------------------------------------
 
     def setup(self) -> bool:
-        """Download the Nanvix sysroot."""
+        """Download the Nanvix runtime sysroot."""
         local_nanvix = self._local_nanvix_path
         if local_nanvix:
             local_nanvix = os.path.abspath(os.path.expanduser(local_nanvix))
@@ -361,27 +336,6 @@ class PosixTestsBuild(ZScript):
                     shutil.copy2(src, bin_dst / name)
                     log.info(f"  Copied bin/{name}")
 
-            # Copy libraries.
-            lib_dst = sysroot_dir / "lib"
-            lib_dst.mkdir()
-            lib_src = local / "lib"
-            if lib_src.is_dir():
-                for f in lib_src.iterdir():
-                    if f.is_file():
-                        shutil.copy2(f, lib_dst / f.name)
-                        log.info(f"  Copied lib/{f.name}")
-
-            # Copy user.ld from known fallback locations.
-            if not (lib_dst / "user.ld").is_file():
-                for candidate in [
-                    local / "sysroot-release" / "lib" / "user.ld",
-                    local / "build" / "user" / "linker" / "x86" / "user.ld",
-                ]:
-                    if candidate.is_file():
-                        shutil.copy2(candidate, lib_dst / "user.ld")
-                        log.info(f"  Copied user.ld from {candidate}")
-                        break
-
             self.sysroot = Sysroot(sysroot_dir.resolve())
             self.sysroot.verify(self.sysroot_required_files())
             self.config.set(CFG_SYSROOT, str(self.sysroot.path))
@@ -413,27 +367,28 @@ class PosixTestsBuild(ZScript):
         self._stage_release_outputs()
 
     def _stage_release_outputs(self) -> None:
-        """Mirror build/<suite>.elf into bin_out() for the inherited release().
+        """Stage build/<suite>.elf for release and host-side tests.
 
         The inherited ``ZScript.release()`` packages ``release_dir()``
         into ``dist_dir()``; copying the per-suite ELFs into
-        ``bin_out()`` is what makes them appear in the tarball.  Missing
-        suites are tolerated here (the docker build may produce a subset
-        on some hosts); the tarball will simply omit them and any
-        downstream consumer can fail loudly.
+        ``bin_out()`` is what makes them appear in the tarball, while
+        ``test_out()`` is transferred to Windows CI. Missing suites are
+        tolerated here; downstream consumers can fail loudly.
         """
         build_dir = repo_root() / "build"
         if not build_dir.is_dir():
             return
-        dest = bin_out()
-        dest.mkdir(parents=True, exist_ok=True)
+        destinations = (bin_out(), test_out())
+        for dest in destinations:
+            dest.mkdir(parents=True, exist_ok=True)
         copied = 0
         for suite in ALL_SUITES:
             src = build_dir / f"{suite}.elf"
             if src.is_file():
-                shutil.copy2(src, dest / src.name)
+                for dest in destinations:
+                    shutil.copy2(src, dest / src.name)
                 copied += 1
-        log.info(f"Staged {copied} test ELFs under {dest}")
+        log.info(f"Staged {copied} test ELFs for release and host-side testing")
 
     def test(self) -> None:
         """Run the POSIX test suites.
@@ -468,14 +423,6 @@ class PosixTestsBuild(ZScript):
         build_dir = repo_root() / "build"
         build_dir.mkdir(exist_ok=True)
 
-        # Determine the sysroot path relative to the repo root.
-        # nanvix-zutil places files in .nanvix/sysroot/; the old 'make init'
-        # places them directly in .nanvix/.  Pass the correct path so the
-        # Dockerfile can forward it to Make.
-        sysroot_rel = ".nanvix/sysroot"
-        if not (repo_root() / sysroot_rel / "lib" / "libposix.a").is_file():
-            sysroot_rel = ".nanvix"
-
         log.info(f"Building via Docker ({docker_image})...")
         os.environ.setdefault("DOCKER_BUILDKIT", "1")
         run(
@@ -483,8 +430,6 @@ class PosixTestsBuild(ZScript):
             "build",
             "--build-arg",
             f"BASE_IMAGE={docker_image}",
-            "--build-arg",
-            f"NANVIX_SYSROOT={sysroot_rel}",
             "--build-arg",
             f"PLATFORM={self.config.machine}",
             "--build-arg",
@@ -504,16 +449,8 @@ class PosixTestsBuild(ZScript):
     def _resolve_docker_image(self) -> str:
         """Resolve the Docker image tag for cross-compilation.
 
-        Returns the fixed GHCR toolchain-gcc image tag.
-        Falls back to the cached ``.docker-image`` file if present.
+        Returns the content-addressed Nanvix C/Clang SDK image.
         """
-        # Check for cached .docker-image (from 'make init').
-        cached = repo_root() / ".nanvix" / ".docker-image"
-        if cached.is_file():
-            tag = cached.read_text().strip()
-            if tag:
-                return tag
-
         return DOCKER_IMAGE
 
     # ---- Native test execution -------------------------------------------
@@ -544,7 +481,22 @@ class PosixTestsBuild(ZScript):
                 code=EXIT_MISSING_DEP,
                 hint="Run `./z setup` first.",
             )
-        build_dir = repo_root() / "build"
+        build_dirs = (repo_root() / "build", test_out())
+        build_dir = next(
+            (
+                candidate
+                for candidate in build_dirs
+                if any((candidate / f"{suite}.elf").is_file() for suite in BASE_SUITES)
+            ),
+            None,
+        )
+        if build_dir is None:
+            searched = ", ".join(str(path) for path in build_dirs)
+            log.fatal(
+                f"No POSIX test binaries found in: {searched}.",
+                code=EXIT_MISSING_DEP,
+                hint="Run `./z build` or download the Linux test artifacts first.",
+            )
 
         # --- Smoke tests ---
         print("Running smoke tests...")
@@ -577,7 +529,9 @@ class PosixTestsBuild(ZScript):
         make_initrd resolves binary paths relative to it.
         """
         failed: list[str] = []
-        for suite in TESTABLE_SUITES + STANDALONE_ONLY_SUITES:
+        for suite in (
+            TESTABLE_SUITES + STANDALONE_INFRASTRUCTURE_SUITES + STANDALONE_ONLY_SUITES
+        ):
             binary = build_dir / f"{suite}.elf"
             if not binary.is_file():
                 print(f"SKIP {suite}")
@@ -685,13 +639,18 @@ class PosixTestsBuild(ZScript):
         nanvixd: Path,
         mkramfs: Path,
     ) -> None:
-        """Run integration tests in multi-process or single-process mode.
+        """Run integration tests in single-process mode.
 
         Uses nanvixd directly with a ramfs providing /tmp for any
         test I/O. No initrd is needed as daemons are managed by the
-        hypervisor in these modes.
+        hypervisor.
         """
         failed: list[str] = []
+        for suite in STANDALONE_INFRASTRUCTURE_SUITES:
+            print(
+                f"SKIP {suite} "
+                "(Nanvix v0.20.0 single-process runtime lacks required services)"
+            )
         for suite in TESTABLE_SUITES:
             binary = build_dir / f"{suite}.elf"
             if not binary.is_file():

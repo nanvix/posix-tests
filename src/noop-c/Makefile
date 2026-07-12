@@ -8,7 +8,7 @@ OBJECTS := $(SOURCES:.c=.o)
 BINARY  := $(PROGRAM_NAME).elf
 
 all: $(OBJECTS)
-	$(CC) $(LDFLAGS) $(OBJECTS) $(LIBRARIES) -o $(BINARIES_DIR)/$(BINARY)
+	$(CC) $(LDFLAGS) $(OBJECTS) -o $(BINARIES_DIR)/$(BINARY)
 
 clean:
 	rm -f $(OBJECTS)
