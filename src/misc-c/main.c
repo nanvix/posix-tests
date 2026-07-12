@@ -35,7 +35,8 @@ int main(int argc, const char *argv[])
     assert(argc == 1);
     assert(argv[0] != NULL);
     assert(argv[1] == NULL);
-    assert(strcmp(argv[0], "misc-c.elf") == 0);
+    assert(
+        strcmp(argv[0], "misc-c") == 0 || strcmp(argv[0], "misc-c.elf") == 0);
 
     test_getuid();
     test_getgid();

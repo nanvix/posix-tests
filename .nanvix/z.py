@@ -553,12 +553,12 @@ class PosixTestsBuild(ZScript):
                     # environment variable set to pass its internal checks.
                     initrd = make_initrd(
                         self,
-                        binary.name,
-                        test=True,
+                        repo_elf,
+                        test_out(),
                         args=InitRdArgs(app_env=["NANVIX_TEST=1"]),
                     )
                 else:
-                    initrd = make_initrd(self, binary.name, test=True)
+                    initrd = make_initrd(self, repo_elf, test_out())
                 with tempfile.TemporaryDirectory(prefix=f"posix_test_{suite}_") as tmp:
                     tmp_path = Path(tmp)
                     ramfs_dir = tmp_path / "ramfs"
