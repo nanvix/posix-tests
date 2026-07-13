@@ -13,8 +13,11 @@ NANVIX_DIR ?= .nanvix
 NANVIX_RUNTIME ?= $(NANVIX_DIR)/sysroot
 NANVIX_VERSION ?= 0.20.0
 
-# Content-addressed Nanvix C/Clang SDK used for every build.
-NANVIX_SDK_IMAGE := ghcr.io/nanvix/nanvix-sdk-c-clang@sha256:f61737cb0780e6a2058c6d0bdf8ae5562db18de437173b2bcbbe6973abd3689f
+# Content-addressed SDK coordinate comes from the canonical manifest.
+NANVIX_MANIFEST ?= .nanvix/nanvix.toml
+NANVIX_SDK_IMAGE_NAME = $(shell sed -n 's/^sdk-image = "\(.*\)"/\1/p' $(NANVIX_MANIFEST))
+NANVIX_SDK_IMAGE_DIGEST = $(shell sed -n 's/^sdk-digest = "\(.*\)"/\1/p' $(NANVIX_MANIFEST))
+NANVIX_SDK_IMAGE ?= $(NANVIX_SDK_IMAGE_NAME)@$(NANVIX_SDK_IMAGE_DIGEST)
 
 # Build/runtime knobs (must match Dockerfile defaults). Used both to select the
 # correct release asset in 'make init' and to parameterize the Docker build.

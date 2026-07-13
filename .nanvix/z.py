@@ -121,12 +121,6 @@ SUITE_RAMFS_LIBS: dict[str, list[tuple[str, str]]] = {
     "dlfcn-pie-c": [("libmul-pie.so", "lib/libmul-pie.so")],
 }
 
-# Docker image for cross-compilation.
-DOCKER_IMAGE = (
-    "ghcr.io/nanvix/nanvix-sdk-c-clang"
-    "@sha256:f61737cb0780e6a2058c6d0bdf8ae5562db18de437173b2bcbbe6973abd3689f"
-)
-
 # Windows host-native binaries needed for test execution.
 WINDOWS_HOST_BINARIES = [
     "nanvixd.exe",
@@ -447,11 +441,14 @@ class PosixTestsBuild(ZScript):
         log.success(f"Built {len(elfs)} test binaries in build/")
 
     def _resolve_docker_image(self) -> str:
-        """Resolve the Docker image tag for cross-compilation.
-
-        Returns the content-addressed Nanvix C/Clang SDK image.
-        """
-        return DOCKER_IMAGE
+        """Resolve the manifest's immutable SDK build image."""
+        image = self.manifest.toolchain.effective_build_ref
+        if image is None:
+            log.fatal(
+                "nanvix.toml does not define an SDK build image.",
+                code=EXIT_MISSING_DEP,
+            )
+        return image
 
     # ---- Native test execution -------------------------------------------
 
