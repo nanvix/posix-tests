@@ -35,9 +35,8 @@ as well as simple echo, hello-world, and no-op benchmarks.
 ## Quick Start
 
 ```bash
-# 1. Download the Nanvix 0.20.0 runtime and configure the pinned SDK image.
-./z setup --with-docker \
-  ghcr.io/nanvix/nanvix-sdk-c-clang@sha256:f61737cb0780e6a2058c6d0bdf8ae5562db18de437173b2bcbbe6973abd3689f
+# 1. Download the Nanvix 0.20.0 runtime and use the manifest-pinned SDK.
+./z setup
 
 # 2. Build all supported test suite ELFs with Clang/LLVM.
 ./z build
