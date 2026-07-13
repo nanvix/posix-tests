@@ -442,13 +442,7 @@ class PosixTestsBuild(ZScript):
 
     def _resolve_docker_image(self) -> str:
         """Resolve the manifest's immutable SDK build image."""
-        image = self.manifest.toolchain.effective_build_ref
-        if image is None:
-            log.fatal(
-                "nanvix.toml does not define an SDK build image.",
-                code=EXIT_MISSING_DEP,
-            )
-        return image
+        return self.manifest.toolchain.effective_build_ref
 
     # ---- Native test execution -------------------------------------------
 
