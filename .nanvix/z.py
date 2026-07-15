@@ -40,8 +40,8 @@ from nanvix_zutil import (
 )
 from nanvix_zutil.helpers import InitRdArgs
 from nanvix_zutil.paths import (
-    bin_out,
     nanvix_root,
+    regular_out,
     repo_root,
     test_out,
 )
@@ -363,16 +363,16 @@ class PosixTestsBuild(ZScript):
     def _stage_release_outputs(self) -> None:
         """Stage build/<suite>.elf for release and host-side tests.
 
-        The inherited ``ZScript.release()`` packages ``release_dir()``
+        The inherited ``ZScript.release()`` packages ``regular_out()``
         into ``dist_dir()``; copying the per-suite ELFs into
-        ``bin_out()`` is what makes them appear in the tarball, while
+        ``regular_out()/bin`` is what makes them appear in the tarball, while
         ``test_out()`` is transferred to Windows CI. Missing suites are
         tolerated here; downstream consumers can fail loudly.
         """
         build_dir = repo_root() / "build"
         if not build_dir.is_dir():
             return
-        destinations = (bin_out(), test_out())
+        destinations = (regular_out() / "bin", test_out())
         for dest in destinations:
             dest.mkdir(parents=True, exist_ok=True)
         copied = 0
